@@ -52,15 +52,16 @@
     const url=videoUrl(), known=new Set();
     let opened=false, pendingPage=null, pageWait=0;
     progress={url,count:0,limit,state:'正在打开评论区'};
-    const save=async (name,items,state)=>{
-      progress={url,count:known.size,limit,state};
+    const save=async (name,items,state,completed=false)=>{
       await persist(url,name,items,state);
+      progress={url,count:known.size,limit,state,completed};
     };
+    const finish=()=>save(title,seen,`采集完成，已保存 ${known.size} 条可读评论`,true);
     try {
       const key='video:'+url;
       const prior=(await chrome.storage.local.get(key))[key];
       for(const c of prior?.comments||[]) known.add(c.key);
-      if(known.size>=limit){await save(prior?.title,seen,'已达到设定上限');return;}
+      if(known.size>=limit){title=prior?.title;await finish();return;}
       for(;rounds<200 && !stopped;rounds++){
         if(videoUrl()!==url){await save(title,seen,'已切换作品，原作品采集停止');return;}
         const s=snapshot();
@@ -82,7 +83,7 @@
           known.add(key); seen.set(key,c);
           if(known.size===limit) break;
         }
-        if(known.size>=limit){await save(title,seen,'已达到设定上限');return;}
+        if(known.size>=limit){await finish();return;}
         if(!s.comments.length && !seen.size){
           if(typeof Zhihu!=='undefined' && !opened)opened=Zhihu.open();
           if(typeof Zhihu==='undefined' && !rounds && !s.rowCount && !document.querySelector('[data-e2e="comment-list"]')){
@@ -99,9 +100,9 @@
           pendingPage=signature;pageWait=0;idle=0;
           await wait(500);continue;
         }
-        if(!box){await save(title,seen,'未找到可滚动评论区，已保存当前可读评论');return;}
+        if(!box){await finish();return;}
         idle=seen.size===before && box.scrollTop+box.clientHeight>=box.scrollHeight-2?idle+1:0;
-        if(idle>=6){await save(title,seen,'连续多次无新增，已停止；不保证全部加载');return;}
+        if(idle>=6){await finish();return;}
         box.scrollTop=Math.min(box.scrollHeight,box.scrollTop+Math.max(100,Math.floor(box.clientHeight*.85)));
         await wait(2000);
       }

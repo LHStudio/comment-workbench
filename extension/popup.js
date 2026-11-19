@@ -13,7 +13,9 @@ async function poll(){
     $('phase').textContent=p.state;$('start').disabled=p.running;$('stop').disabled=!p.running;
     $('limit').disabled=p.running;document.querySelectorAll('[data-n]').forEach(b=>b.disabled=p.running);
     if(p.running&&p.limit)$('limit').value=p.limit;
-    draw(p.count||0,Number($('limit').value)||100);
+    $('bar').hidden=!!p.completed;
+    if(p.completed)$('count').textContent=`上限 ${p.limit} 条`;
+    else draw(p.count||0,p.running?p.limit:Number($('limit').value)||100);
   }catch(e){$('phase').textContent=e.message.includes('请打开')?e.message:'未连接，请刷新作品页';$('start').disabled=true;$('stop').disabled=true;}
 }
 document.querySelectorAll('[data-n]').forEach(b=>b.onclick=()=>{$('limit').value=b.dataset.n;poll();});

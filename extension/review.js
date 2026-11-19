@@ -26,7 +26,7 @@ function render(){
   for(const [id,label] of types){const opt=el('option',label);opt.value=id;select.append(opt);}
   select.value=types.some(([id])=>id===group(k,v))?group(k,v):'unknown';
   select.onchange=()=>edit(vk(k),{group:select.value});
-  bar.append(el('label','作品类型'),select,btn('删除此作品',()=>removeSamples(k)));
+  bar.append(el('label','作品类型'),select);
   const fill=()=>{ul.replaceChildren();if(!d.open)return;
    for(const c of matching){const li=el('li'),info=el('div');
     info.append(el('small',`${c.nickname||'昵称未记录'} · ${fmt(c.capturedAt)}`),el('div',c.text));
@@ -34,7 +34,8 @@ function render(){
   };
   d.append(s,bar,ul);d.open=!!q||opened.has(k);
   d.ontoggle=()=>{if(!q){if(d.open)opened.add(k);else opened.delete(k);}fill();};
-  const a=el('article');a.append(d);list.append(a);fill();
+  const remove=btn('删除此作品',()=>removeSamples(k));remove.className='danger removeWork';
+  const a=el('article');a.className='workCard';a.append(d,remove);list.append(a);fill();
  }
  $('stats').textContent=`${vids().length} 个作品 · ${n} 条保留评论`;
  if(!list.children.length)list.append(el('p',q?'没有匹配的评论':'暂无样本'));
@@ -57,10 +58,16 @@ function renderTypes(){
  const box=$('types');box.replaceChildren();
  for(const [id,title] of types){
   const r=el('div');r.className='typeRow';
-  if(base.some(x=>x[0]===id)){r.append(el('span',title),el('small','内置'));}else{
+  if(id==='unknown'){r.append(el('span',title),el('small','默认'));}else{
    const field=el('input');field.value=title;field.maxLength=40;field.setAttribute('aria-label','类型名称');
    r.append(field,btn('保存',async()=>{let s=field.value.trim();if(!s||types.some(([i,t])=>i!==id&&t===s))return;types=types.map(x=>x[0]===id?[id,s]:x);await saveTypes();}),
-    btn('删除',async()=>{if(!confirm('删除类型？使用它的作品将显示为未设置，评论不会删除。'))return;types=types.filter(x=>x[0]!==id);await saveTypes();}));
+    btn('删除',async()=>{
+     if(!confirm(`删除类型“${title}”？使用它的作品将改为未设置，评论不会删除。`))return;
+     all=await store.get(null);
+     const changes={videoTypes:(all.videoTypes||base).filter(x=>x[0]!==id)};
+     for(const [k,v] of vids())if(group(k,v)===id)changes[vk(k)]={...all[vk(k)],group:'unknown'};
+     await store.set(changes);await load();renderTypes();
+    }));
   }box.append(r);
  }
 }

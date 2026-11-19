@@ -64,6 +64,7 @@ python -m pip install playwright
 python -m playwright install chromium
 python test_link.py
 python test_zhihu_flow.py
+python test_sample_ui.py
 ```
 
 端到端测试用隔离的 Chromium 配置、合成页面和临时数据库，验证抖音、知乎两种作品、真实本机 HTTP、重复发送和报告导出；不读取日常浏览器的登录状态。它能检验数据链路，但不能代替对线上网站改版的验证。
