@@ -2,18 +2,18 @@
 <html lang="zh-CN">
 <head>
   <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-  <title>样本整理 · 评论工作台</title><link rel="stylesheet" href="ui.css"><link rel="stylesheet" href="topic.css">
+  <title>样本整理 · 评论工作台</title><link rel="icon" href="icons/workbench.svg"><link rel="stylesheet" href="ui.css"><link rel="stylesheet" href="topic.css">
 </head>
 <body class="workspace">
   <header class="topbar"><div class="topinner">
-    <strong class="brand"><i class="brandMark" aria-hidden="true"></i>评论工作台</strong>
-    <nav aria-label="工作区导航"><a href="review.html" data-view="samples" aria-current="page">样本整理</a><a href="review.html?view=topic" data-view="topic">主题采集</a><a href="review.html?view=tools" data-view="tools">工具</a></nav>
+    <strong class="brand"><img class="brandMark" src="icons/workbench.svg" alt="">评论工作台</strong>
+    <nav aria-label="工作区导航"><a href="review.html" data-view="samples" aria-current="page">样本整理</a><a href="review.html?view=topic" data-view="topic">主题采集</a><a href="review.html?view=tools" data-view="tools">工具</a><a href="review.html?view=copyright" data-view="copyright">版权页</a></nav>
     <span class="local">本地工作区</span>
   </div></header>
   <main>
     <section id="samples" data-page="samples" aria-labelledby="sampleHeading">
       <div class="pageHeading"><div><p class="kicker">样本库</p><h1 id="sampleHeading">样本整理</h1></div>
-        <div class="actions"><button id="refresh">刷新</button><button id="export" class="primary" title="无论筛选条件如何，均导出全部保留评论">导出全部 CSV</button></div>
+        <div class="actions"><button id="refresh">刷新</button><button id="clear" class="danger">清空所有样本</button><button id="export" class="primary" title="无论筛选条件如何，均导出全部保留评论">导出全部 CSV</button></div>
       </div>
       <div id="stats" class="stats" aria-label="样本概览"></div>
       <div class="libraryHead"><h2>作品列表</h2><button id="manage" class="quiet">类型管理</button></div>
@@ -32,13 +32,18 @@
     </section>
     <section id="tools" data-page="tools" hidden aria-labelledby="toolsHeading">
       <div class="pageHeading"><div><p class="kicker">工作区设置</p><h1 id="toolsHeading">工具</h1></div></div>
-      <details class="tool"><summary>连接分析工作台</summary><form id="pairForm" class="controls">
+      <section class="tool" aria-labelledby="pairHeading"><h2 id="pairHeading">连接分析工作台</h2><form id="pairForm" class="controls">
         <label>本机端口<input id="port" type="number" min="1024" max="65535" value="8765" required></label>
         <label>配对码<input id="pairKey" type="password" autocomplete="off" required></label>
         <label class="check"><input id="autoSend" type="checkbox" checked>采集后自动发送</label>
         <button>连接并保存</button><button id="push" type="button">发送全部保留样本</button><button id="disconnect" type="button">断开</button>
-      </form><output id="bridgeStatus" role="status"></output></details>
-      <div class="maintenance"><span>样本存储</span><button id="clear" class="danger">清空所有样本</button></div>
+      </form><output id="bridgeStatus" role="status"></output></section>
+    </section>
+    <section data-page="copyright" hidden aria-labelledby="copyrightHeading">
+      <div class="pageHeading"><div><p class="kicker">项目资料</p><h1 id="copyrightHeading">版权页</h1></div></div>
+      <div class="creditBrand"><img width="64" height="64" src="icons/workbench.svg" alt=""><div><h2>评论工作台</h2><p lang="en">Design by LHStudio</p></div></div>
+      <dl class="creditList"><div><dt>扩展版本</dt><dd id="creditVersion"></dd></div>
+        <div><dt>GitHub 仓库</dt><dd><a href="https://github.com/LHStudio/comment-workbench" target="_blank" rel="noopener noreferrer">LHStudio/comment-workbench</a></dd></div></dl>
     </section>
     <output id="notice" role="status"></output>
   </main>

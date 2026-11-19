@@ -1,4 +1,6 @@
 const $=id=>document.getElementById(id);
+// Give Chrome's auto-sized toolbar surface an intrinsic width, not a viewport-relative one.
+if(chrome.extension.getViews({type:'popup'}).includes(window))document.documentElement.classList.add('actionPopup');
 $('version').textContent='v'+chrome.runtime.getManifest().version;
 for(const {id,label,home} of Sites.platforms){
   const a=document.createElement('a'),icon=document.createElement('img'),text=document.createElement('span');

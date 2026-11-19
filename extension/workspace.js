@@ -1,6 +1,7 @@
 (() => {
   const links = [...document.querySelectorAll('nav a[data-view]')];
   const pages = [...document.querySelectorAll('[data-page]')];
+  document.getElementById('creditVersion').textContent = 'v' + chrome.runtime.getManifest().version;
   const hashes = new Map([['#samples','samples'],['#topicPanel','topic'],['#tools','tools']]);
   const current = () => {
     const url = new URL(location.href);

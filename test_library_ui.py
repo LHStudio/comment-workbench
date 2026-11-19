@@ -69,8 +69,11 @@ def main(ext, evidence=None):
             ui.go_forward()
             view('tools','工具')
             ui.set_viewport_size({'width':1280,'height':840})
-            ui.get_by_text('连接分析工作台',exact=True).click()
+            expect(ui.locator('#pairKey')).to_be_visible()
             snapshot(ui,'tools-desktop.png')
+            ui.get_by_role('link',name='版权页',exact=True).click()
+            view('copyright','版权页')
+            snapshot(ui,'copyright-desktop.png')
             ui.emulate_media(reduced_motion='reduce')
             assert ui.locator('[data-page]:visible').evaluate("e=>getComputedStyle(e).animationName==='none'")
             for hash_name, expected, name in [('topicPanel','topic','主题采集'),('tools','tools','工具'),('samples','samples','样本整理')]:
@@ -129,7 +132,7 @@ def main(ext, evidence=None):
             assert not cards.locator('a').count()
             popup=ctx.new_page()
             watch(popup)
-            popup.set_viewport_size({'width':480,'height':540})
+            popup.set_viewport_size({'width':680,'height':600})
             popup.goto(origin+'/popup.html')
             expect(popup).to_have_title('当前作品采集')
             assert popup.locator('button#start').evaluate("e=>getComputedStyle(e).fontSize==='16px'")
@@ -144,7 +147,7 @@ def main(ext, evidence=None):
                 platform.value.close()
             assert popup.evaluate('[...document.querySelectorAll("#platformLinks img")].every(i=>i.complete&&i.naturalWidth>0)')
             assert popup.evaluate('document.documentElement.scrollWidth<=innerWidth')
-            assert popup.locator('body').bounding_box()['width']==480
+            assert popup.locator('body').bounding_box()['width']==680
             snapshot(popup,'popup.png')
             for width in [320,390]:
                 popup.set_viewport_size({'width':width,'height':600})
@@ -156,7 +159,7 @@ def main(ext, evidence=None):
             assert not issues,issues
             print('PASS: 5 folded source badges + original links; platform/type/keyword filters; reset; CSV all 10 rows; unknown URL not linked.')
             print('PASS: manifest version, 5 homepage links + local icons, topic entry; widths 320/390/700/768/1280; no page errors, warnings or overflow.')
-            print('PASS: independent views, legacy hashes, canonical URLs, back/forward preserve the document and topic form; reduced motion; 16px body and actions; popup width 480.')
+            print('PASS: four independent views, legacy hashes, canonical URLs, back/forward preserve the document and topic form; reduced motion; 16px body and actions; popup width 680.')
         finally:
             ctx.close()
 
