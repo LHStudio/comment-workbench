@@ -1,0 +1,4 @@
+Platform glyphs from Simple Icons 14.15.0 (CC0 1.0 Universal):
+https://github.com/simple-icons/simple-icons/tree/14.15.0
+Source glyphs: tiktok, zhihu, xiaohongshu, sinaweibo, bilibili.
+The glyphs identify links to their respective services and do not indicate affiliation.

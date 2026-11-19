@@ -1,4 +1,10 @@
 const $=id=>document.getElementById(id);
+$('version').textContent='v'+chrome.runtime.getManifest().version;
+for(const {id,label,home} of Sites.platforms){
+  const a=document.createElement('a'),icon=document.createElement('img'),text=document.createElement('span');
+  a.href=home;a.target='_blank';a.rel='noopener noreferrer';a.title='打开'+label+'主页';
+  icon.src='icons/'+id+'.svg';icon.alt='';text.textContent=label;a.append(icon,text);$('platformLinks').append(a);
+}
 async function request(action,params={}){
   const [tab]=await chrome.tabs.query({active:true,currentWindow:true});
   const platform=Sites.work(tab?.url)?.label || (tab?.url?.startsWith('https://www.douyin.com/')?'抖音视频':'');
@@ -28,4 +34,5 @@ $('start').onclick=async()=>{
 };
 $('stop').onclick=async()=>{try{await request('stop');$('phase').textContent='正在停止';}catch(e){$('msg').textContent=e.message;}};
 $('review').onclick=()=>chrome.tabs.create({url:chrome.runtime.getURL('review.html')});
+$('openTopic').onclick=()=>chrome.tabs.create({url:chrome.runtime.getURL('review.html#topicPanel')});
 chrome.storage.local.get('captureLimit').then(v=>{$('limit').value=v.captureLimit||50;poll();setInterval(poll,1200);});

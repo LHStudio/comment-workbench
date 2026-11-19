@@ -13,9 +13,9 @@ const Bilibili=(()=>{
       walk(e,visitor,stopAtRows);
     }
   }
-  function snapshot(){
+  function snapshot(relate){
     const p=panel(), title=first(document,'h1.video-title,h1[data-title],#viewbox_report h1')?.innerText.trim()||'';
-    const rows=[],comments=[];
+    const rows=[],records=[];
     walk(p?.shadowRoot||p,e=>{if(e.matches(rowSelector))rows.push(e);});
     for(const row of rows){
       let b=null,author=null;
@@ -26,9 +26,12 @@ const Bilibili=(()=>{
         if(!author && e.matches('#user-name,.user-name,.sub-user-name'))author=e;
       },true);
       const value=text(b);
-      if(value)comments.push({id:row.getAttribute('data-rpid')||row.dataset.id||'',nickname:author?.innerText.trim()||'',
-        text:value,capturedAt:new Date().toISOString()});
+      if(value)records.push({row,c:{id:row.getAttribute('data-rpid')||row.dataset.id||'',nickname:author?.innerText.trim()||'',
+        text:value,capturedAt:new Date().toISOString()}});
     }
+    const comments=relate(records,{site:'bili',root:'bili-comment-renderer,.root-reply-container,.reply-item[data-id]',
+      reply:'bili-comment-reply-renderer,.sub-reply-item',group:'bili-comment-thread-renderer,.reply-item',
+      replyGroup:'bili-comment-replies-renderer,.sub-reply-list'});
     return {title,comments,rowCount:rows.length,challenge:PostDOM.challenge()};
   }
   function open(){

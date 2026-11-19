@@ -12,21 +12,40 @@ const level=c=>c.depth|| (c.isReply?'楼中楼（级数未知）':'未知');
 function el(tag,text){let e=document.createElement(tag);if(text!=null)e.textContent=text;return e;}
 function btn(text,fn){const e=el('button',text);e.onclick=fn;return e;}
 function fmt(t){return t&&Number.isFinite(Date.parse(t))?new Date(t).toLocaleString('zh-CN',{hour12:false}):'未记录';}
-async function load(){all=await store.get(null);types=all.videoTypes||base.map(x=>[...x]);render();}
+function options(select,entries,selected){
+ select.replaceChildren(...entries.map(([id,title])=>{const opt=el('option',title);opt.value=id;return opt;}));
+ select.value=entries.some(([id])=>id===selected)?selected:'';
+}
+function updateFilters(){
+ options($('platformFilter'),[['','全部平台'],...Sites.platforms.map(({id,label})=>[id,label]),['unknown','未知平台']],$('platformFilter').value);
+ options($('typeFilter'),[['','全部类型'],...types],$('typeFilter').value);
+}
+async function load(){all=await store.get(null);types=all.videoTypes||base.map(x=>[...x]);updateFilters();render();}
 async function edit(key,patch){all[key]={...all[key],...patch};await store.set({[key]:all[key]});}
 function render(){
  const q=$('search').value.trim().toLowerCase(),list=$('list');list.replaceChildren();
- let n=0;
- for(const [k,v] of vids().sort((a,b)=>(b[1].updated||'').localeCompare(a[1].updated||''))){
+ const works=vids().sort((a,b)=>(b[1].updated||'').localeCompare(a[1].updated||''));
+ const pf=$('platformFilter').value,tf=$('typeFilter').value,sources=new Set();
+ let n=0,shown=0;
+ for(const [k,v] of works){
   const rows=v.comments.filter(c=>kept(k,c));n+=rows.length;
+  const work=Sites.work(v.url||k.slice(6)),platform=Sites.platform(work?.platform),type=group(k,v);
+  if(platform)sources.add(platform.id);
+  if((pf&&pf!==(platform?.id||'unknown'))||(tf&&tf!==type))continue;
   const matching=rows.filter(c=>[v.title,c.nickname,c.text].some(s=>String(s||'').toLowerCase().includes(q)));
   if(q&&!matching.length&&!v.title?.toLowerCase().includes(q))continue;
+  shown++;
   const d=el('details'),s=el('summary'),ul=el('ul'),bar=el('div');
-  s.append(el('strong',v.title||'标题未识别'),el('small',`${rows.length} 条 · 最近采集 ${fmt(v.updated)}`));
+  const headline=el('span'),badge=el('span',platform?.label||'未知平台'),meta=el('span');
+  headline.className='workHeadline';badge.className='sourceBadge';meta.className='workMeta';
+  if(platform){const icon=el('img');icon.src='icons/'+platform.id+'.svg';icon.alt='';badge.prepend(icon);}
+  headline.append(badge,el('strong',v.title||'标题未识别'));
+  meta.append(el('span',name(type)),el('span',`${rows.length} 条评论`),el('span','最近采集 '+fmt(v.updated)));
+  s.append(headline,meta);
   bar.className='controls';const select=el('select');select.setAttribute('aria-label','作品类型');
   for(const [id,label] of types){const opt=el('option',label);opt.value=id;select.append(opt);}
-  select.value=types.some(([id])=>id===group(k,v))?group(k,v):'unknown';
-  select.onchange=()=>edit(vk(k),{group:select.value});
+  select.value=types.some(([id])=>id===type)?type:'unknown';
+  select.onchange=async()=>{await edit(vk(k),{group:select.value});opened.add(k);render();};
   bar.append(el('label','作品类型'),select);
   const numbers=new Map(rows.map((c,i)=>[c.ref,i+1]).filter(([ref])=>ref));
   const fill=()=>{ul.replaceChildren();if(!d.open)return;
@@ -35,14 +54,29 @@ function render(){
     const relation=c.parentRef?' · 回复 '+link(c.parentRef):c.isReply?' · 直接回复对象未知':'';
     info.append(el('small',`${c.ref?'#'+numbers.get(c.ref)+' · ':''}${c.depth?'第 '+c.depth+' 级':c.isReply?level(c):'层级未知'}${relation}${c.rootRef?' · 所属主评 '+link(c.rootRef):''} · ${c.nickname||'昵称未记录'} · ${fmt(c.capturedAt)}`),el('div',c.text));
     li.append(info,btn('移出样本',async()=>{await edit(rk(k,c),{dropped:true});render();}));ul.append(li);}
+   if(!matching.length)ul.append(el('li','没有保留的评论。'));
   };
   d.append(s,bar,ul);d.open=!!q||opened.has(k);
   d.ontoggle=()=>{if(!q){if(d.open)opened.add(k);else opened.delete(k);}fill();};
   const remove=btn('删除此作品',()=>removeSamples(k));remove.className='danger removeWork';
-  const a=el('article');a.className='workCard';a.append(d,remove);list.append(a);fill();
+  const actions=el('div');actions.className='workActions';
+  if(work){
+   const link=el('a','原文 ↗');link.href=work.url;link.target='_blank';link.rel='noopener noreferrer';
+   link.title='在新标签页打开原文';actions.append(link);
+  }else{actions.append(el('small','无可用原文'));}
+  actions.append(remove);
+  const a=el('article');a.className='workCard';a.append(d,actions);list.append(a);fill();
  }
- $('stats').textContent=`${vids().length} 个作品 · ${n} 条保留评论`;
- if(!list.children.length)list.append(el('p',q?'没有匹配的评论':'暂无样本'));
+ $('stats').replaceChildren(...[[works.length,'个作品'],[n,'条保留评论'],[sources.size,'个来源平台']].map(([value,label])=>{
+  const metric=el('div');metric.append(el('b',value.toLocaleString('zh-CN')),el('span',label));return metric;
+ }));
+ const filtered=!!(q||pf||tf);$('resetFilters').disabled=!filtered;
+ $('resultCount').textContent=`显示 ${shown} / ${works.length} 个作品 · 最近采集优先`;
+ if(!list.children.length){
+  const empty=el('div');empty.className='empty';
+  empty.append(el('strong',filtered?'没有符合条件的作品':'暂无样本'),el('p',filtered?'请更换关键词，或重置筛选。':'在作品详情页打开插件采集评论，或前往主题采集。'));
+  list.append(empty);
+ }
 }
 async function removeSamples(key){
  if(!confirm(key?'删除这个作品及其全部评论？':'清空所有作品、评论和整理标记？类型设置将保留。'))return;
@@ -57,7 +91,7 @@ async function removeSamples(key){
  });
  await store.remove(keys);await load();
 }
-async function saveTypes(){await store.set({videoTypes:types});renderTypes();render();}
+async function saveTypes(){await store.set({videoTypes:types});updateFilters();renderTypes();render();}
 function renderTypes(){
  const box=$('types');box.replaceChildren();
  for(const [id,title] of types){
@@ -79,10 +113,17 @@ $('addtype').onsubmit=async e=>{e.preventDefault();const s=$('typename').value.t
 $('manage').onclick=()=>{renderTypes();$('settings').showModal();};
 $('clear').onclick=()=>removeSamples(null);
 $('refresh').onclick=load;$('search').oninput=render;
+$('platformFilter').onchange=render;$('typeFilter').onchange=render;
+$('resetFilters').onclick=()=>{$('search').value='';$('typeFilter').value='';$('platformFilter').value='';render();};
 const cell=x=>{let s=String(x??'');if(/^\s*[=+@-]|^[\t\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
 $('export').onclick=async()=>{
  await load();const rows=[['作品标题','作品链接','作品类型','评论人昵称','评论正文','采集时间','作品最近采集时间','评论层级','评论标识','父评论标识','所属主评标识']];
  for(const [k,v] of vids())for(const c of v.comments)if(kept(k,c))rows.push([v.title,v.url,name(group(k,v)),c.nickname,c.text,c.capturedAt,v.updated,level(c),c.ref,c.parentRef,c.rootRef]);
  const a=el('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));a.download='评论工作台_原始评论.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 };
+let refreshTimer;
+chrome.storage.onChanged.addListener((changes, area)=>{
+ if(area!=='local'||!Object.keys(changes).some(k=>k.startsWith('video:')))return;
+ clearTimeout(refreshTimer);refreshTimer=setTimeout(load,200);
+});
 load();

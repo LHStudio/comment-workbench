@@ -28,8 +28,8 @@ const Zhihu = (() => {
     return all.find(owned) || dialogs().filter(isComments).find(p=>owned(p)||detached(p)) ||
       all.find(detached);
   }
-  function snapshot(){
-    const p=panel(), comments=[];
+  function snapshot(relate){
+    const p=panel(), records=[];
     const title=document.querySelector('h1.Post-Title,h1.QuestionHeader-title,article h1,h1')?.innerText.trim()||'';
     const bodies=p?[...p.querySelectorAll(body)].filter(e=>visible(e)&&!e.querySelector(body)&&!e.closest('form,[contenteditable="true"]')):[];
     for(const b of bodies){
@@ -40,10 +40,13 @@ const Zhihu = (() => {
         if(n.querySelector('a[href*="/people/"],a[href*="/org/"]') && bodies.filter(x=>n.contains(x)).length===1){row=n;break;}
       }
       const text=b.innerText.trim();
-      if(row && text) comments.push({id:row.dataset.commentId||row.id||'',text,
-        nickname:row.querySelector('.UserLink-link,a[href*="/people/"],a[href*="/org/"]')?.textContent.trim()||'',
-        capturedAt:new Date().toISOString()});
+      if(row && text)records.push({row,c:{id:row.dataset.commentId||row.id||'',text,
+        nickname:[...row.querySelectorAll('.UserLink-link,a[href*="/people/"],a[href*="/org/"]')].find(
+          e=>visible(e)&&(!e.closest(item)||e.closest(item)===row))?.textContent.trim()||'',
+        capturedAt:new Date().toISOString()}});
     }
+    const comments=relate(records,{site:'zh',root:'.NestComment--rootComment,.CommentItem,.CommentItemV2',
+      reply:'.NestComment--child',group:'.NestComment',replyGroup:'.NestComment--child,.NestComment-childList'});
     return {title,comments,rowCount:p?.querySelectorAll(item).length||0,
       challenge:/安全验证|验证码/.test(document.title)||[...document.querySelectorAll('[class*="Captcha"],.SignFlow,.SignFlowModal')].some(visible)};
   }
