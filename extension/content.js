@@ -5,14 +5,15 @@
   const wait = ms => new Promise(r=>setTimeout(r,ms));
   const visible = e => !!(e && e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden');
   const active = () => document.querySelector('[data-e2e="feed-active-video"]');
+  const adapter=typeof Xiaohongshu!=='undefined'?Xiaohongshu:typeof Zhihu!=='undefined'?Zhihu:null;
   function videoUrl() {
-    if(typeof Zhihu!=='undefined')return Sites.work(location.href)?.url||'';
+    if(adapter)return Sites.work(location.href)?.url||'';
     const url=new URL(location.href);
     const id=active()?.getAttribute('data-e2e-vid') || url.searchParams.get('modal_id') || url.pathname.match(/^\/video\/(\d+)/)?.[1];
     return /^\d+$/.test(id||'') ? `${url.origin}/video/${id}` : '';
   }
   function snapshot() {
-    if(typeof Zhihu!=='undefined')return Zhihu.snapshot();
+    if(adapter)return adapter.snapshot();
     const scope=active() || document;
     const title=[...scope.querySelectorAll('[data-e2e="video-desc"], [data-e2e="video-title"], h1')].find(visible);
     const panel=[...document.querySelectorAll('[data-e2e="comment-list"]')].find(visible);
@@ -32,7 +33,7 @@
     return {title:title ? title.innerText.trim() : '',comments,challenge,rowCount:rows.length};
   }
   function scrollBox(){
-    if(typeof Zhihu!=='undefined')return Zhihu.scroll();
+    if(adapter)return adapter.scroll();
     const selectors=['.comment-mainContent','[data-e2e="comment-list"]','[class*="comment-list"]'];
     for (const sel of selectors) for (const el of document.querySelectorAll(sel)) if(visible(el) && el.scrollHeight>el.clientHeight+5) return el;
     const item=document.querySelector('[data-e2e="comment-item"]');
@@ -85,8 +86,9 @@
         }
         if(known.size>=limit){await finish();return;}
         if(!s.comments.length && !seen.size){
-          if(typeof Zhihu!=='undefined' && !opened)opened=Zhihu.open();
-          if(typeof Zhihu==='undefined' && !rounds && !s.rowCount && !document.querySelector('[data-e2e="comment-list"]')){
+          if(s.empty){await finish();return;}
+          if(adapter && !opened)opened=adapter.open();
+          if(!adapter && !rounds && !s.rowCount && !document.querySelector('[data-e2e="comment-list"]')){
             const button=(active()||document).querySelector('[data-e2e="feed-comment-icon"]');
             if(visible(button)) button.click();
           }

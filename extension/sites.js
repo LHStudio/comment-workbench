@@ -8,6 +8,10 @@ const Sites = (() => {
   function work(raw) {
     try {
       const u = new URL(raw), path = u.pathname.replace(/\/$/, '');
+      if(u.origin==='https://www.xiaohongshu.com' && !u.username && !u.password){
+        const note=path.match(/^\/(?:explore|discovery\/item|search_result)\/([0-9a-f]{24})$/i);
+        if(note)return {label:'小红书笔记',url:u.origin+'/explore/'+note[1].toLowerCase()};
+      }
       const match = patterns.find(([,origin,re]) => origin === u.origin && re.test(path));
       if (match && !u.username && !u.password) return {label:match[0],url:u.origin+path};
     } catch {}

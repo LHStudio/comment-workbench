@@ -42,7 +42,7 @@ function render(){
 }
 async function removeSamples(key){
  if(!confirm(key?'删除这个作品及其全部评论？':'清空所有作品、评论和整理标记？类型设置将保留。'))return;
- const tabs=await chrome.tabs.query({url:['https://www.douyin.com/*','https://www.zhihu.com/*','https://zhuanlan.zhihu.com/*']});
+ const tabs=await chrome.tabs.query({url:['https://www.douyin.com/*','https://www.zhihu.com/*','https://zhuanlan.zhihu.com/*','https://www.xiaohongshu.com/*']});
  for(const t of tabs){let s;try{s=await chrome.tabs.sendMessage(t.id,{action:'status'});}catch{}
   if(s?.running){$('notice').textContent='请先停止正在进行的采集，再删除。';return;}}
  const latest=await store.get(null);
