@@ -3,7 +3,7 @@ async function request(action,params={}){
   const [tab]=await chrome.tabs.query({active:true,currentWindow:true});
   const platform=Sites.work(tab?.url)?.label || (tab?.url?.startsWith('https://www.douyin.com/')?'抖音视频':'');
   $('heading').textContent=platform?'采集'+platform:'采集当前作品';
-  if(!platform)throw Error('请打开小红书笔记、抖音作品或知乎文章／回答详情');
+  if(!platform)throw Error('请打开微博正文、B站视频、小红书笔记、抖音作品或知乎文章／回答详情');
   return chrome.tabs.sendMessage(tab.id,{action,...params});
 }
 function draw(count,limit){$('count').textContent=`${count} / ${limit}`;$('bar').max=limit;$('bar').value=count;}

@@ -17,7 +17,7 @@ from werkzeug.serving import make_server
 from engine import LABELS, attitude, model_group, report
 
 ROOT=Path(__file__).resolve().parent
-WORK_URL=re.compile(r'https://(?:www\.douyin\.com/video/[0-9]{15,22}|zhuanlan\.zhihu\.com/p/[0-9]+|www\.zhihu\.com/question/[0-9]+/answer/[0-9]+|www\.xiaohongshu\.com/explore/[0-9a-f]{24})')
+WORK_URL=re.compile(r'https://(?:www\.douyin\.com/video/[0-9]{15,22}|zhuanlan\.zhihu\.com/p/[0-9]+|www\.zhihu\.com/question/[0-9]+/answer/[0-9]+|www\.xiaohongshu\.com/explore/[0-9a-f]{24}|weibo\.com/[1-9][0-9]{3,19}/[A-Za-z0-9]{7,16}|www\.bilibili\.com/video/(?:BV[A-Za-z0-9]{10}|av[1-9][0-9]*))')
 
 class Library:
     def __init__(self,folder):

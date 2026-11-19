@@ -5,7 +5,8 @@
   const wait = ms => new Promise(r=>setTimeout(r,ms));
   const visible = e => !!(e && e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden');
   const active = () => document.querySelector('[data-e2e="feed-active-video"]');
-  const adapter=typeof Xiaohongshu!=='undefined'?Xiaohongshu:typeof Zhihu!=='undefined'?Zhihu:null;
+  const adapter=typeof Bilibili!=='undefined'?Bilibili:typeof Weibo!=='undefined'?Weibo:
+    typeof Xiaohongshu!=='undefined'?Xiaohongshu:typeof Zhihu!=='undefined'?Zhihu:null;
   function videoUrl() {
     if(adapter)return Sites.work(location.href)?.url||'';
     const url=new URL(location.href);
