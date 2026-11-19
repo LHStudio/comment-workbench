@@ -4,19 +4,29 @@ const Zhihu = (() => {
   const item = '[data-comment-id],[id^="comment-"],.CommentItem,.CommentItemV2,.NestComment--rootComment,.NestComment--child';
   const body = '.CommentContent,.CommentItem-content,.CommentItemV2-content,.RichText,.RichContent-inner,[data-role="comment-content"],.ztext';
   const visible = n => n && n.getClientRects().length && getComputedStyle(n).visibility !== 'hidden';
+  let openedFrom=null;
+  const dialogs=()=>[...document.querySelectorAll('[role="dialog"],.Modal-inner')].filter(visible);
+  const isComments=p=>/评论/.test(p.innerText) && (p.querySelector(item) || p.querySelector(body));
   const answer = () => {
     const id = location.pathname.match(/\/answer\/(\d+)/)?.[1];
     if (!id) return null;
-    return [...document.querySelectorAll('.AnswerItem')].find(e =>
-      e.getAttribute('name')===id || e.dataset.zop?.includes(`"itemId":${id}`) ||
-      [...e.querySelectorAll('meta[itemprop="url"],a[itemprop="url"]')].some(x=>Sites.work(x.content||x.href)?.url===Sites.work(location.href)?.url));
+    return [...document.querySelectorAll('.AnswerItem')].find(e => {
+      if(e.getAttribute('name')===id || e.dataset.answerId===id)return true;
+      // The raw numeric token can exceed JS's safe integer range.
+      if(e.dataset.zop?.match(/"itemId"\s*:\s*"?(\d+)"?(?=\s*[,}])/)?.[1]===id)return true;
+      return [...e.querySelectorAll('meta[itemprop="url"],a[itemprop="url"]')].some(x=>
+        Sites.work(x.content||x.href)?.url===Sites.work(location.href)?.url);
+    });
   };
   function panel(){
     const all=[...document.querySelectorAll(panels)].filter(visible);
     const current=answer();
-    const dialogs=[...document.querySelectorAll('[role="dialog"]')].filter(visible);
-    return dialogs.find(p=>/评论/.test(p.innerText) && (p.querySelector(item) || p.querySelector(body))) ||
-      all.find(p=>!p.closest('.AnswerItem') || p.closest('.AnswerItem')===current);
+    const multi=document.querySelectorAll('.AnswerItem').length>1;
+    const owned=p=>!!current && p.closest('.AnswerItem')===current;
+    const detached=p=>!p.closest('.AnswerItem') && (!multi ||
+      (openedFrom?.url===location.href && openedFrom.owner===current && !openedFrom.existing.has(p)));
+    return all.find(owned) || dialogs().filter(isComments).find(p=>owned(p)||detached(p)) ||
+      all.find(detached);
   }
   function snapshot(){
     const p=panel(), comments=[];
@@ -40,8 +50,22 @@ const Zhihu = (() => {
   function open(){
     if(panel())return;
     const scope=answer() || (location.hostname==='zhuanlan.zhihu.com'?document:null);
-    const b=[...(scope?.querySelectorAll('button')||[])].find(e=>visible(e)&&/^(?:添加评论|评论|\d[\d,.万]*\s*条?评论)$/.test((e.innerText||e.getAttribute('aria-label')||'').trim()));
-    b?.click();
+    const b=[...(scope?.querySelectorAll('button,[role="button"]')||[])].find(e=>visible(e)&&!e.disabled&&
+      [e.innerText,e.getAttribute('aria-label'),e.title].some(s=>
+        /^(?:添加评论|(?:查看|展开|打开)?\s*(?:[\d,.]+(?:万)?\+?\s*条?\s*)?评论(?:区)?)$/.test((s||'').trim())));
+    if(!b)return false;
+    openedFrom={url:location.href,owner:scope,existing:new Set([...dialogs(),...[...document.querySelectorAll(panels)].filter(visible)])};
+    b.click();
+    return true;
+  }
+  function next(){
+    const p=panel();
+    const button=[...(p?.querySelectorAll('button,[role="button"]')||[])].find(e=>
+      visible(e) && !e.disabled && e.getAttribute('aria-disabled')!=='true' && !e.closest(item) &&
+      [e.innerText,e.getAttribute('aria-label')].some(s=>/^(下一页|加载更多评论|查看更多评论)$/.test((s||'').trim())));
+    if(!button)return false;
+    button.click();
+    return true;
   }
   function scroll(){
     const p=panel();
@@ -51,5 +75,5 @@ const Zhihu = (() => {
     }
     return null;
   }
-  return {snapshot,open,scroll};
+  return {snapshot,open,scroll,next};
 })();

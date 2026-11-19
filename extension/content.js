@@ -50,6 +50,7 @@
     if(!Number.isInteger(limit)||limit<1||limit>1000) throw Error('每个作品的上限须为 1 到 1000 的整数');
     if(running || !videoUrl()) return; running=true; stopped=false; let rounds=0, idle=0; const seen=new Map(); let title='';
     const url=videoUrl(), known=new Set();
+    let opened=false, pendingPage=null, pageWait=0;
     progress={url,count:0,limit,state:'正在打开评论区'};
     const save=async (name,items,state)=>{
       progress={url,count:known.size,limit,state};
@@ -66,6 +67,14 @@
         if(s.challenge){await save(title,seen,'遇到验证，已停止');return;}
         if(s.title) title=s.title;
         if(!title){if(rounds<12){await wait(650);continue;}await save('',seen,'未找到作品标题；请打开作品详情');return;}
+        const signature=typeof Zhihu!=='undefined'?JSON.stringify(s.comments.map(c=>[c.id,c.nickname,c.text])):null;
+        if(pendingPage!==null){
+          if(!s.comments.length || signature===pendingPage){
+            if(++pageWait>=12){await save(title,seen,'翻页后评论未更新，已保存当前结果');return;}
+            await wait(500);continue;
+          }
+          pendingPage=null;pageWait=0;
+        }
         let before=seen.size;
         for (const c of s.comments){
           const key=c.id?'id:'+c.id:'row:'+JSON.stringify([c.nickname,c.text]);
@@ -75,8 +84,8 @@
         }
         if(known.size>=limit){await save(title,seen,'已达到设定上限');return;}
         if(!s.comments.length && !seen.size){
-          if(!rounds && !s.rowCount && !document.querySelector('[data-e2e="comment-list"]')){
-            if(typeof Zhihu!=='undefined')Zhihu.open();
+          if(typeof Zhihu!=='undefined' && !opened)opened=Zhihu.open();
+          if(typeof Zhihu==='undefined' && !rounds && !s.rowCount && !document.querySelector('[data-e2e="comment-list"]')){
             const button=(active()||document).querySelector('[data-e2e="feed-comment-icon"]');
             if(visible(button)) button.click();
           }
@@ -84,7 +93,12 @@
           await save(title,seen,s.rowCount?`已找到 ${s.rowCount} 个评论项，但未识别正文`:'未加载评论；请确认评论区已展开');return;
         }
         await save(title,seen,`采集中：${known.size} / ${limit}`);
+        if(stopped || videoUrl()!==url)continue;
         const box=scrollBox();
+        if(typeof Zhihu!=='undefined' && (!box || box.scrollTop+box.clientHeight>=box.scrollHeight-2) && Zhihu.next()){
+          pendingPage=signature;pageWait=0;idle=0;
+          await wait(500);continue;
+        }
         if(!box){await save(title,seen,'未找到可滚动评论区，已保存当前可读评论');return;}
         idle=seen.size===before && box.scrollTop+box.clientHeight>=box.scrollHeight-2?idle+1:0;
         if(idle>=6){await save(title,seen,'连续多次无新增，已停止；不保证全部加载');return;}
