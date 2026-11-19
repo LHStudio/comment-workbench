@@ -182,7 +182,7 @@
             const button=(active()||document).querySelector('[data-e2e="feed-comment-icon"]');
             if(visible(button)) button.click();
           }
-          if(rounds<5){await wait(1000);continue;}
+          if(rounds<(s.loading?15:5)){await wait(1000);continue;}
           await save(title,seen,s.rowCount?`已找到 ${s.rowCount} 个评论项，但未识别正文`:'未加载评论；请确认评论区已展开');return;
         }
         await save(title,seen,`采集中：${known.size} / ${limit}`);
@@ -211,16 +211,6 @@
   }
   window.dyCollector={snapshot,run,stop:()=>{stopped=true;}};
   chrome.runtime.onMessage.addListener((msg,sender,reply)=>{
-    if(msg.action==='discover'){
-      (async()=>{const ids=new Set();for(let i=0;i<10;i++){
-        if(snapshot().challenge||/登录后查看搜索结果/.test(document.body.innerText)){reply({blocked:true});return;}
-        for(const el of document.querySelectorAll('[id^="waterfall_item_"]')){
-          const id=el.id.slice('waterfall_item_'.length),t=(el.querySelector('.BjLsdJMi')||el).innerText;
-          if(/^\d+$/.test(id)&&/ai|阿福|豆包|大模型|deepseek|千问|chatgpt|小荷|晓医|人工智能/i.test(t)&&/看病|问诊|健康|医生|用药|体检|报告|就医|医疗|病情/.test(t))ids.add(id);
-        }
-        const box=document.querySelector('#waterFallScrollContainer');box?.lastElementChild?.scrollIntoView({block:'end'});await wait(1000);
-      }reply({ids:[...ids]});})().catch(()=>reply({blocked:true}));return true;
-    }
     if(msg.action==='start'){
       if(running){reply({ok:false,message:'当前作品正在采集'});return;}
       if(!Number.isInteger(msg.limit)||msg.limit<1||msg.limit>1000){reply({ok:false,message:'请输入 1 到 1000 之间的整数'});return;}

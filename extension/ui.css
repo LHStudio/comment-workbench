@@ -1,7 +1,7 @@
-:root{color-scheme:light;--ink:#1e302e;--muted:#51635e;--line:#d7e0dc;--accent:#146951;--tint:#eaf3ee;--paper:#fff;font:14px/1.55 "Segoe UI","Microsoft YaHei",sans-serif;color:var(--ink);background:#f4f6f5}
+:root{color-scheme:light;--ink:#1e302e;--muted:#51635e;--line:#d7e0dc;--accent:#146951;--tint:#eaf3ee;--paper:#fff;font:16px/1.6 "Microsoft YaHei UI","Microsoft YaHei","PingFang SC","Noto Sans CJK SC",system-ui,sans-serif;color:var(--ink);background:#f4f6f5}
 *{box-sizing:border-box}
-body{margin:0}
-button,input,select,textarea{font:inherit;color:inherit}
+body{margin:0;font:inherit}
+button,input,select,textarea{font:inherit;letter-spacing:0;color:inherit}
 button,input:not([type=checkbox]),select,textarea{border:1px solid #b9c7c0;border-radius:5px;background:white;padding:7px 11px;min-height:36px;max-width:100%}
 button{cursor:pointer;font-weight:550}
 button:enabled:hover,.quiet:hover{border-color:#689882;background:#edf4ef}
@@ -18,13 +18,14 @@ small{color:var(--muted)}
 .brandMark{width:21px;height:21px;border:2px solid #adcfb7;border-radius:4px;position:relative;display:inline-block}
 .brandMark:before,.brandMark:after{content:"";position:absolute;width:9px;height:2px;background:#adcfb7;left:4px;top:5px}
 .brandMark:after{width:6px;top:10px}
-nav{display:flex;align-items:center;gap:20px;font-size:13px}
-nav a{color:#e1eae3;text-decoration:none}
-nav a:hover{text-decoration:underline}
+nav{display:flex;align-items:center;gap:6px;font-size:14px}
+nav a{color:#e1eae3;text-decoration:none;border-radius:4px;padding:5px 9px;white-space:nowrap}
+nav a:hover{background:#334d44}
+nav a[aria-current=page]{color:white;background:#3f594e;box-shadow:inset 0 -2px #a0c4aa}
 .local,.version{margin-left:auto;white-space:nowrap;color:#d2e4d7;font-size:12px}
 .version{font-variant-numeric:tabular-nums;border:1px solid #6e8878;border-radius:4px;padding:1px 7px}
 .workspace main{max-width:1184px;margin:auto;padding:28px 32px 60px}
-.workspace main>section{scroll-margin-top:18px}
+.workspace [data-page][hidden]{display:none}
 h1,h2,h3,p{margin:0}
 h1{font-size:28px;line-height:1.3;font-weight:700}
 h2{font-size:19px;line-height:1.4}
@@ -35,7 +36,7 @@ h2{font-size:19px;line-height:1.4}
 .stats>div{display:flex;align-items:baseline;gap:9px;padding-inline:20px;border-left:1px solid var(--line)}
 .stats>div:first-child{border-left:0;padding-left:0}
 .stats b{font-size:25px;line-height:1.15;font-variant-numeric:tabular-nums}
-.stats span,.resultCount,.workMeta,.controls label,.filters label,.settings span,.popup label,.platformSection p{color:var(--muted);font-size:13px}
+.stats span,.resultCount,.workMeta,.controls label,.filters label,.settings span,.popup label,.platformSection p{color:var(--muted);font-size:14px}
 .libraryHead{margin-bottom:10px}
 .filters{display:grid;grid-template-columns:minmax(190px,2.6fr) minmax(120px,1fr) minmax(140px,1.35fr) auto;align-items:end;gap:12px}
 .filters label,.controls label:not(.check){display:grid;gap:4px;min-width:0}
@@ -52,7 +53,7 @@ h2{font-size:19px;line-height:1.4}
 .workCard summary:hover,.workCard details[open] summary{background:#f5f9f6}
 .workHeadline,.workMeta,.workActions,.controls,.typeRow{flex-wrap:wrap}
 .workHeadline{gap:9px}
-.workHeadline strong{overflow-wrap:anywhere;min-width:0;font-size:15px}
+.workHeadline strong{overflow-wrap:anywhere;min-width:0;font-size:16px}
 .sourceBadge{flex:none;gap:5px;background:#f4f6f5;border:1px solid #dce3df;border-radius:4px;padding:1px 6px;font-size:12px;line-height:19px}
 .sourceBadge img{width:14px;height:14px}
 .workMeta{gap:4px 11px;margin-top:5px}
@@ -68,10 +69,10 @@ h2{font-size:19px;line-height:1.4}
 .workCard ul{padding:0;list-style:none}
 .workCard li{display:grid;grid-template-columns:minmax(0,1fr) auto;align-items:start;gap:10px;border-top:1px solid var(--line);padding:10px 0;overflow-wrap:anywhere}
 .workCard li div div{white-space:pre-wrap}
-.workCard li button{font-size:12px;min-height:30px}
+.workCard li button{font-size:14px;min-height:32px}
 .empty{padding:27px 18px;text-align:center}
 .empty p,.platformSection p{color:var(--muted);margin-top:5px}
-#tools,#topicPanel:not(:empty){margin-top:32px}
+#tools .pageHeading,#topicView .pageHeading{margin-bottom:22px}
 .tool,.maintenance{border-top:1px solid var(--line);padding:11px 0}
 .tool summary{cursor:pointer;font-weight:600}
 .check{display:inline-flex;align-items:center;gap:5px}
@@ -86,30 +87,44 @@ dialog::backdrop{background:rgba(22,37,32,.38)}
 .typeRow{flex-wrap:nowrap}
 .typeRow input,#addtype input{min-width:0;flex:1}
 .typeRow small{margin-left:auto}
-.popup{width:360px;max-width:100vw;background:white}
-.popup .topinner{padding:0 16px;min-height:46px}
-.popup main{padding:16px 16px 12px}
+.popup{width:480px;max-width:100vw;background:white}
+.popup .topinner{padding:0 20px;min-height:48px}
+.popup main{padding:17px 20px 13px}
 .popup h1{font-size:21px;margin-bottom:12px}
 .popup h2{font-size:15px}
 .settings{flex-wrap:wrap;gap:6px;margin:4px 0 13px}
 .settings input{width:68px}
 .presets{margin-left:auto;gap:3px}
-.presets button{min-height:31px;padding:3px 7px;font-size:12px}
-.meter{align-items:flex-start;font-size:13px;color:var(--muted);gap:8px}
+.presets button{min-height:34px;padding:3px 9px;font-size:14px}
+.meter{align-items:flex-start;font-size:14px;color:var(--muted);gap:8px}
 .meter b{color:var(--ink);flex-shrink:0;font-variant-numeric:tabular-nums}
 progress{width:100%;height:7px;accent-color:var(--accent);margin:4px 0 10px}
 .popup .actions .primary{flex:1}
 .platformSection{margin-top:15px;padding-top:12px;border-top:1px solid var(--line)}
 .platformLinks{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px;margin:8px 0}
-.platformLinks a{display:grid;justify-items:center;gap:5px;padding:5px 0;text-decoration:none;color:var(--ink);font-size:12px;border-radius:4px}
+.platformLinks a{display:grid;justify-items:center;gap:5px;padding:5px 0;text-decoration:none;color:var(--ink);font-size:14px;border-radius:4px}
 .platformLinks a:hover{background:var(--tint)}
 .platformLinks img{width:22px;height:22px}
-.popup footer{padding:9px 16px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:6px}
+.popup footer{padding:9px 20px;border-top:1px solid var(--line);display:flex;justify-content:space-between;gap:6px}
+.local,.version,.kicker,.sourceBadge,.workActions a,.workActions .danger,
+.workspace small,.popup small,.tool output,.maintenance,.workspace nav a{font-size:14px}
+.popup .platformLinks a{border:1px solid var(--line);padding:9px 0;background:#fbfcfc}
+.popup .platformLinks a:hover{background:var(--tint);border-color:#91b8a8}
+.popup .presets button[aria-pressed=true]{background:var(--tint);border-color:#75a28d}
+.popup progress{display:block;appearance:none;border:0;border-radius:4px;overflow:hidden;margin:8px 0 14px}
+.popup progress::-webkit-progress-bar{background:#e3e9ea;border-radius:4px}
+.popup progress::-webkit-progress-value{background:var(--accent);border-radius:4px}
+@media(prefers-reduced-motion:no-preference){
+ [data-page]:not([hidden]){animation:viewEnter .15s ease-out}
+ button,nav a,.platformLinks a{transition:background-color .13s ease-out,border-color .13s ease-out}
+ .workCard summary:before{transition:transform .14s ease-out}
+ @keyframes viewEnter{from{opacity:.65;transform:translateY(3px)}to{opacity:1;transform:translateY(0)}}
+}
 @media(max-width:700px){
  .workspace main{padding:20px 13px 40px}
  .workspace .topinner{padding:0 13px;gap:16px;flex-wrap:wrap}
  .workspace .local{display:none}
- nav{gap:14px}
+ nav{gap:2px}
  .filters{grid-template-columns:1fr 1fr;gap:8px}
  .filterKeyword{grid-column:1/-1}
  .filters #resetFilters{grid-column:1/-1;justify-self:end;min-height:29px;padding-block:1px}
@@ -127,4 +142,8 @@ progress{width:100%;height:7px;accent-color:var(--accent);margin:4px 0 10px}
  .pageHeading .actions button{padding-inline:8px}
  .controls label:not(.check){width:100%}
 }
-@media(max-width:360px){.workspace .brand{font-size:15px}.workspace nav{gap:9px}.pageHeading{align-items:flex-end}h1{font-size:24px}}
+@media(max-width:390px){
+ .popup .topinner,.popup main,.popup footer{padding-inline:14px}
+ .workspace .brand{font-size:15px}.workspace .topinner{gap:7px}.workspace nav a{padding-inline:5px;font-size:14px}
+ .pageHeading{align-items:flex-end}h1{font-size:24px}
+}

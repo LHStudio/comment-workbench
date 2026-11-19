@@ -74,7 +74,7 @@ def main():
         if not Path(executable).is_file():
             cache = Path(os.environ.get('LOCALAPPDATA', '.')) / 'ms-playwright'
             executable = str(next(cache.glob('chromium-*/chrome-win*/chrome.exe')))
-        mode = {'blocked': True, 'gate_search': False}
+        mode = {'blocked': True, 'gate_search': False, 'xhs':'ready', 'deleted':False}
         visits = []
 
         def serve(host, path):
@@ -87,11 +87,19 @@ def main():
                     body += '<div role="dialog">请先登录后查看搜索结果</div>'
             elif host == 'www.xiaohongshu.com' and path == '/search_result':
                 body = f'<section class="note-item"><a class="cover" href="/search_result/{NOTE}?xsec_source=synthetic">封面</a><span class="title">合成笔记</span></section>'
+                if mode['xhs']=='gate':
+                    body += '<div role="dialog">请先登录后查看搜索结果</div>'
+                elif mode['xhs']=='empty':
+                    body = '<div class="empty">暂无结果</div>'
+            elif host == 'www.xiaohongshu.com':
+                body = '<div id="noteContainer"><h1>笔记详情标题</h1><div class="comments-container"><div class="comment-item" data-comment-id="1"><span class="content">合成评论</span></div></div></div>'
             elif host == 'www.bilibili.com':
                 body = '''<h1 class="video-title">合成标题</h1><div id="comment">
                 <div class="root-reply-container" data-id="synthetic"><span class="reply-content">可读的部分</span></div></div>'''
                 if mode['blocked'] and IDS[1] in path:
                     body += '<div role="dialog">请完成安全验证</div>'
+                if mode['deleted'] and IDS[0] in path:
+                    body = '<div role="alert">作品已删除</div>'
             else:
                 body = '<title>已有用户页</title>'
             return body
@@ -102,7 +110,7 @@ def main():
             args=[f'--disable-extensions-except={EXT}', f'--load-extension={EXT}', '--disable-background-networking', *args])
         try:
             worker = (ctx.service_workers or [ctx.wait_for_event('serviceworker')])[0]
-            home = worker.url.rsplit('/', 1)[0] + '/review.html'
+            home = worker.url.rsplit('/', 1)[0] + '/review.html?view=topic'
             original = ctx.new_page()
             original.goto('https://www.bilibili.com/')
             first = ctx.new_page()
@@ -113,6 +121,8 @@ def main():
                 page.on('dialog', lambda dlg: dlg.accept())
                 page.locator('#topicTerm').wait_for()
             state = lambda page: page.evaluate('async k=>(await chrome.storage.local.get(k))[k]', KEY)
+            second.evaluate("""()=>{window.foregroundTasks=[];chrome.tabs.onCreated.addListener(t=>{
+                if(t.id)window.foregroundTasks.push({active:t.active,url:t.pendingUrl||t.url})})}""")
 
             def wait(page, predicate):
                 deadline = time.monotonic() + 35
@@ -121,83 +131,98 @@ def main():
                         raise AssertionError((predicate, state(page), page.locator('#topicNotice').inner_text(), visits))
                     page.wait_for_timeout(120)
 
-            def start(term, mode_name, works=3):
+            def start(term, platforms=('xhs','bili'), works=3):
                 first.locator('#topicTerm').fill(term)
                 for box in first.locator('#topicPanel input[name="topicPlatform"]').all():
-                    box.set_checked(box.input_value() == 'bili')
-                first.locator('#topicMode').select_option(mode_name)
+                    box.set_checked(box.input_value() in platforms)
                 first.locator('#topicWorks').fill(str(works))
                 first.locator('#topicComments').fill('1')
                 first.locator('#topicStart').click()
 
-            start('手动用例', 'manual')
-            wait(first, "q.phase==='confirm'")
-            assert len(state(first)['items']) == 3
-            assert not any('/video/' in p for _, p in visits)
-            first.locator('#topicSkip').click()
-            wait(first, "q.phase==='confirm'&&q.items[0].state==='skipped'")
-            first.locator('#topicNext').click()
-            wait(first, "q.phase==='paused'&&q.items[1].count===1")
-            assert '验证' in state(first)['reason']
-            assert state(first)['items'][1]['state'] != 'done'
-            count = sum(IDS[1] in p for _, p in visits)
+            assert first.locator('#topicMode').count()==0, 'obsolete mode control'
+            start('逐平台')
+            wait(first, "q.term==='逐平台'&&q.phase==='attention'")
+            q=state(first)
+            assert visits.index(('www.xiaohongshu.com',f'/search_result/{NOTE}'))<visits.index(('search.bilibili.com','/all')),visits
+            assert [i['state'] for i in q['items']]==['done','done','partial','pending'],q
+            assert q['items'][2]['count']==1 and '验证' in q['items'][2]['note']
+            url=f'https://www.xiaohongshu.com/explore/{NOTE}'
+            assert first.evaluate("async u=>(await chrome.storage.local.get('video:'+u))['video:'+u].title",url)=='笔记详情标题'
+            assert first.evaluate("async()=>!JSON.stringify(await chrome.storage.local.get(null)).includes('xsec_source')")
+            created=second.evaluate('window.foregroundTasks')
+            assert len(created)>=5 and all(t['active'] for t in created),created
+            before=list(visits)
             first.reload()
             first.wait_for_timeout(500)
-            assert sum(IDS[1] in p for _, p in visits) == count
+            assert before==visits
             mode['blocked'] = False
-            for p in ctx.pages:
-                if IDS[1] in p.url:
-                    p.reload()
-            first.locator('#topicNext').click()
-            wait(first, "q.phase==='confirm'&&q.items[1].state==='done'")
-            first.locator('#topicPause').click()
-            wait(first, "q.phase==='paused'")
             first.locator('#topicNext').click()
             wait(first, "q.phase==='done'")
-            assert original.url == 'https://www.bilibili.com/'
-            print('manual: deduplicated, skipped, saved partial, resumed after reload, paused and completed')
+            assert visits[len(before):].count(('www.xiaohongshu.com',f'/search_result/{NOTE}'))==0
+            print('platform order, saved real title and partial rows, no automatic retries, explicit retry only')
 
-            mode['gate_search'] = True
-            start('自动用例', 'auto', 2)
-            wait(first, "q.term==='自动用例'&&q.phase==='paused'")
-            assert len(state(first)['items']) == 2
-            mode['gate_search'] = False
-            for p in ctx.pages:
-                if 'search.bilibili.com' in p.url:
-                    p.reload()
+            mode['deleted']=True
+            start('单篇不可读',['bili'],2)
+            wait(first,"q.term==='单篇不可读'&&q.phase==='attention'")
+            assert [i['state'] for i in state(first)['items']]==['partial','done'],state(first)
+            before=len(visits)
+            mode['deleted']=False
             first.locator('#topicNext').click()
-            wait(second, "q.phase==='done'")
-            assert all(i['state'] == 'done' for i in state(second)['items'])
+            wait(first,"q.phase==='done'")
+            assert sum(IDS[0] in p for _,p in visits[before:])==1 and not any(IDS[1] in p for _,p in visits[before:])
+            print('unavailable first work did not block second; retry opened only first work')
+
+            for condition in ['gate','empty']:
+                mode['xhs']=condition
+                start('跨站'+condition,works=1)
+                wait(first,f"q.term==='跨站{condition}'&&q.phase==='attention'")
+                q=state(first)
+                assert q['searches'][0]['note'] and q['items'][-1]['platform']=='bili' and q['items'][-1]['state']=='done',q
+            mode['xhs']='ready'
+            print('login wall and explicit empty page did not block second platform')
+
+            start('主动暂停',works=4)
+            wait(first,"q.term==='主动暂停'&&q.phase==='searching'")
+            first.locator('#topicPause').click()
+            wait(first,"q.phase==='paused'")
+            frozen=len(visits)
+            first.wait_for_timeout(800)
+            assert len(visits)==frozen
+            first.locator('#topicNext').click()
+            wait(second,"q.phase==='done'")
             assert original.url == 'https://www.bilibili.com/'
-            print('automatic: search wall paused, visible candidates preserved, retry completed serial queue')
+            print('user pause stopped work and explicit resume completed it')
 
             first.evaluate("""()=>{navigator.locks.request('comment-topic-run',async()=>{window.locked=true;await new Promise(r=>window.release=r)})}""")
             first.wait_for_function('window.locked')
             second.locator('#topicTerm').fill('不应启动')
             second.locator('#topicStart').click()
             second.wait_for_function("document.querySelector('#topicNotice').textContent.includes('另一个')")
-            assert state(second)['term'] == '自动用例'
+            assert state(second)['term'] == '主动暂停'
             first.evaluate('window.release()')
             print('mutual exclusion: other organizer did not replace queue')
 
-            first.locator('#topicTerm').fill('跨平台用例')
-            for b in first.locator('#topicPanel input[name=topicPlatform]').all():
-                b.set_checked(b.input_value() in ['bili','xhs'])
-            first.locator('#topicMode').select_option('manual')
-            first.locator('#topicWorks').fill('1')
-            first.locator('#topicStart').click()
-            wait(first, "q.term==='跨平台用例'&&q.phase==='confirm'")
-            q = state(first)
-            assert {i['platform'] for i in q['items']} == {'bili','xhs'}
-            expected = f'https://www.xiaohongshu.com/explore/{NOTE}'
-            assert any(i['url'] == expected for i in q['items'])
-            assert first.evaluate("async()=>!JSON.stringify(await chrome.storage.local.get(null)).includes('xsec_source')")
-            assert first.evaluate("async url=>(await chrome.storage.session.get('topicNavigationV1')).topicNavigationV1.links[url].endsWith('?xsec_source=synthetic')", expected)
-            with ctx.expect_page() as preview:
-                first.locator('#topicItems a').filter(has_text='查看作品').first.click()
-            preview.value.wait_for_load_state()
-            assert preview.value.url.endswith(f'/search_result/{NOTE}?xsec_source=synthetic')
-            print('cross-platform search: ignored added tracking parameter; canonical samples, session-only note parameters and independent preview')
+            first.evaluate("""async k=>{const q=(await chrome.storage.local.get(k))[k];q.phase='confirm';
+               q.mode='manual';q.searches.forEach(s=>{s.state='done';delete s.scan});q.items[0].state='pending';
+               await chrome.storage.local.set({[k]:q})}""",KEY)
+            first.reload()
+            first.locator('#topicNext').click()
+            wait(first,"q.phase==='done'")
+            assert len(state(first)['items'])==4
+            print('legacy manual queue resumed in place, preserving samples')
+            first.evaluate("""()=>{const orig=chrome.tabs.sendMessage.bind(chrome.tabs);
+              window.disconnects=1;window.discoveryCalls=0;chrome.tabs.sendMessage=(id,m,...args)=>{
+                if(m.action==='topic.discover'){window.discoveryCalls++;if(window.disconnects-->0)
+                  return Promise.reject(Error('Could not establish connection. Receiving end does not exist.'));}
+                return orig(id,m,...args)}}""")
+            start('搜索导航断开重连',['bili'],1)
+            wait(first,"q.term==='搜索导航断开重连'&&['done','attention'].includes(q.phase)")
+            assert state(first)['phase']=='done' and first.evaluate('window.discoveryCalls')==2,state(first)
+            first.evaluate('window.disconnects=3;window.discoveryCalls=0')
+            start('搜索重连仍失败',['bili'],1)
+            wait(first,"q.term==='搜索重连仍失败'&&['done','attention'].includes(q.phase)")
+            assert first.evaluate('window.discoveryCalls')==2 and '无法连接' in state(first)['searches'][0]['note'],state(first)
+            print('transient content receiver reconnected once; lasting disconnect displayed Chinese reason')
         finally:
             ctx.close()
             offline.__exit__(None, None, None)

@@ -1,7 +1,10 @@
 /* Read only cards rendered on the platform's search page. No internal APIs. */
 (() => {
-  const visible = e => e && e.getClientRects().length && getComputedStyle(e).visibility !== 'hidden';
+  const visible = e => e && e.getClientRects().length && (typeof e.checkVisibility==='function'?
+    e.checkVisibility({checkOpacity:true,checkVisibilityCSS:true}):getComputedStyle(e).visibility==='visible');
   const clean = s => (s || '').trim().replace(/\s+/g, ' ').slice(0, 160);
+  const excluded='aside,nav,header,footer,[role="navigation"],[role="complementary"],[role="dialog"],[hidden],[inert],[aria-hidden="true"],[class*="recommend" i],[class*="sidebar" i],[aria-label*="推荐"],[data-e2e*="recommend" i]';
+  const eligible=e=>visible(e)&&!e.closest(excluded);
   const cards = {
     douyin: '[id^="waterfall_item_"],[data-e2e="search-result"] [data-e2e="video-item"],[data-e2e="search-card-video"],#waterFallScrollContainer li',
     zhihu: '.SearchResult-Card,.SearchResultCard,.SearchResult-CardContainer,.Search-container .ContentItem',
@@ -31,9 +34,14 @@
   }
   function discover(platform, limit) {
     const found = new Map();
-    const elements = [...document.querySelectorAll(cards[platform])].filter(visible);
-    for(const card of elements) {
-      const titleEl = card.querySelector('.ContentItem-title,.title,h2,h3,[class*="video-title"],[node-type="feed_list_content"],[data-e2e="video-desc"]');
+    const resultAreas='main,[role="main"],[role="list"],#waterFallScrollContainer,#pl_feedlist_index,.Search-container,.feeds-container,.video-list,[data-e2e="search-result"],[class*="search-result" i]';
+    // Known cards can be outside semantic landmarks. Generic work links need
+    // a result-area ancestor; exclude sidebar cards even if their class matches.
+    for(const card of document.querySelectorAll(`${cards[platform]},a[href]`)) {
+      if(!eligible(card))continue;
+      const known=card.matches(cards[platform]);
+      if(!known&&(!card.closest(resultAreas)||card.closest(cards[platform])))continue;
+      const titleEl = [...card.querySelectorAll('.ContentItem-title,.title,h2,h3,[class*="video-title"],[node-type="feed_list_content"],[data-e2e="video-desc"],.BjLsdJMi')].find(eligible);
       const add = (raw, title) => {
         if(!raw)return false;
         let u;
@@ -47,8 +55,13 @@
         return true;
       };
       const title=titleEl?.getAttribute('title') || titleEl?.innerText;
-      for(const a of card.querySelectorAll(pointers[platform])) {
-        if(add(a.getAttribute('href') || a.dataset.url,title||a.title||a.innerText))break;
+      if(card.matches('a[href]'))add(card.href,title||card.title||card.innerText);
+      else {
+        const primary=[...card.querySelectorAll(pointers[platform])];
+        const anchors=[...new Set([...primary,...card.querySelectorAll('a[href]')])].filter(eligible);
+        for(const a of anchors){
+          if(add(a.getAttribute('href') || a.dataset.url,title||a.title||a.innerText))break;
+        }
       }
       if(platform==='douyin') {
         const id=card.id.match(/^waterfall_item_(\d{15,22})$/)?.[1];
@@ -59,20 +72,21 @@
     const empty=[...document.querySelectorAll('[class*="empty" i],[class*="no-result" i],.card-no-result,[data-e2e="search-no-result"]')].some(e=>visible(e)&&/无|没有|未找到|暂无|未搜到/.test(e.innerText));
     return {rows:[...found.values()].slice(0,limit),empty};
   }
+  function advance(){
+    const box=document.querySelector('#waterFallScrollContainer');
+    const scroller=box&&visible(box)&&box.scrollHeight>box.clientHeight?box:document.scrollingElement;
+    scroller?.scrollBy(0,Math.max(scroller.clientHeight*.85,320));
+  }
   chrome.runtime.onMessage.addListener((m,s,reply)=>{
     if(m.action==='topic.probe') {reply({ok:true,gate:gate()});return;}
     if(m.action!=='topic.discover')return;
     const expected=Sites.search(m.platform,m.term);
     if(!expected || !cards[m.platform]){reply({ok:false});return;}
-    const u=new URL(expected),now=new URL(location.href);
-    if(u.origin!==now.origin || u.pathname!==now.pathname ||
-       [...u.searchParams.keys()].some(k=>JSON.stringify(now.searchParams.getAll(k))!==JSON.stringify(u.searchParams.getAll(k)))){reply({ok:false});return;}
+    if(!Sites.sameSearch(location.href,expected)){reply({ok:false});return;}
     const limit=Math.max(1,Math.min(50,m.limit|0)), blocked=gate();
     const data=discover(m.platform,limit);
     if(m.advance && !blocked && !data.empty) {
-      const box=document.querySelector('#waterFallScrollContainer');
-      const scroller=box && box.scrollHeight>box.clientHeight?box:document.scrollingElement;
-      scroller?.scrollBy(0,Math.max(scroller.clientHeight*0.85,320));
+      advance();
     }
     reply({ok:true,...data,gate:blocked});
   });

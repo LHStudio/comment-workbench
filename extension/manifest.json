@@ -1,5 +1,5 @@
 {
- "manifest_version":3, "name":"评论工作台 · 多平台评论采集", "version":"0.8.0",
+ "manifest_version":3, "name":"评论工作台 · 多平台评论采集", "version":"0.8.1",
  "description":"按主题检索五个平台的作品，逐篇或连续采集可见评论，在本机整理、追溯回复及导出。",
  "permissions":["activeTab","storage","tabs"],
  "host_permissions":["https://www.douyin.com/*","https://zhuanlan.zhihu.com/*","https://www.zhihu.com/*","https://www.xiaohongshu.com/*","https://weibo.com/*","https://www.weibo.com/*","https://www.bilibili.com/*","https://s.weibo.com/*","https://search.bilibili.com/*","http://127.0.0.1/*"],

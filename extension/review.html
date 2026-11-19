@@ -7,11 +7,11 @@
 <body class="workspace">
   <header class="topbar"><div class="topinner">
     <strong class="brand"><i class="brandMark" aria-hidden="true"></i>评论工作台</strong>
-    <nav aria-label="工作区导航"><a href="#samples">样本整理</a><a href="#topicPanel">主题采集</a><a href="#tools">工具</a></nav>
+    <nav aria-label="工作区导航"><a href="review.html" data-view="samples" aria-current="page">样本整理</a><a href="review.html?view=topic" data-view="topic">主题采集</a><a href="review.html?view=tools" data-view="tools">工具</a></nav>
     <span class="local">本地工作区</span>
   </div></header>
   <main>
-    <section id="samples" aria-labelledby="sampleHeading">
+    <section id="samples" data-page="samples" aria-labelledby="sampleHeading">
       <div class="pageHeading"><div><p class="kicker">样本库</p><h1 id="sampleHeading">样本整理</h1></div>
         <div class="actions"><button id="refresh">刷新</button><button id="export" class="primary" title="无论筛选条件如何，均导出全部保留评论">导出全部 CSV</button></div>
       </div>
@@ -24,26 +24,26 @@
         <button id="resetFilters" type="button" class="quiet">重置筛选</button>
       </div>
       <p id="resultCount" class="resultCount" role="status"></p>
-      <output id="notice" role="status"></output><div id="list"></div>
+      <div id="list"></div>
     </section>
-    <section id="topicPanel"></section>
-    <section id="tools" aria-labelledby="toolsHeading"><div class="libraryHead"><h2 id="toolsHeading">工作区工具</h2></div>
+    <section id="topicView" data-page="topic" hidden aria-labelledby="topicHeading">
+      <div class="pageHeading"><div><p class="kicker">采集任务</p><h1 id="topicHeading">主题采集</h1></div></div>
+      <div id="topicPanel"></div>
+    </section>
+    <section id="tools" data-page="tools" hidden aria-labelledby="toolsHeading">
+      <div class="pageHeading"><div><p class="kicker">工作区设置</p><h1 id="toolsHeading">工具</h1></div></div>
       <details class="tool"><summary>连接分析工作台</summary><form id="pairForm" class="controls">
         <label>本机端口<input id="port" type="number" min="1024" max="65535" value="8765" required></label>
         <label>配对码<input id="pairKey" type="password" autocomplete="off" required></label>
         <label class="check"><input id="autoSend" type="checkbox" checked>采集后自动发送</label>
         <button>连接并保存</button><button id="push" type="button">发送全部保留样本</button><button id="disconnect" type="button">断开</button>
       </form><output id="bridgeStatus" role="status"></output></details>
-      <details class="tool"><summary>抖音批量采集</summary><div class="controls">
-        <label>已有抖音标签页编号<input id="batchTab" type="number" min="1" aria-label="绑定已有抖音标签页编号" placeholder="可留空"></label>
-        <button id="batch">抖音批量采集：50 条/视频</button><button id="halt">停止批次</button>
-        <small id="batchStatus" role="status">目标 2,000 条</small>
-      </div></details>
       <div class="maintenance"><span>样本存储</span><button id="clear" class="danger">清空所有样本</button></div>
     </section>
+    <output id="notice" role="status"></output>
   </main>
   <dialog id="settings"><form method="dialog" class="dialogHead"><h2>作品类型管理</h2><button aria-label="关闭">关闭</button></form>
     <div id="types"></div><form id="addtype"><input id="typename" aria-label="新类型名称" placeholder="新类型名称" maxlength="40" required><button>添加类型</button></form>
   </dialog>
-  <script src="sites.js"></script><script src="review.js"></script><script src="batch.js"></script><script src="pair.js"></script><script src="topic.js"></script>
+  <script src="workspace.js"></script><script src="sites.js"></script><script src="review.js"></script><script src="pair.js"></script><script src="topic.js"></script>
 </body></html>

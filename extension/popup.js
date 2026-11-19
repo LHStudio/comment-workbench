@@ -34,5 +34,5 @@ $('start').onclick=async()=>{
 };
 $('stop').onclick=async()=>{try{await request('stop');$('phase').textContent='正在停止';}catch(e){$('msg').textContent=e.message;}};
 $('review').onclick=()=>chrome.tabs.create({url:chrome.runtime.getURL('review.html')});
-$('openTopic').onclick=()=>chrome.tabs.create({url:chrome.runtime.getURL('review.html#topicPanel')});
+$('openTopic').onclick=()=>chrome.tabs.create({url:chrome.runtime.getURL('review.html?view=topic')});
 chrome.storage.local.get('captureLimit').then(v=>{$('limit').value=v.captureLimit||50;poll();setInterval(poll,1200);});

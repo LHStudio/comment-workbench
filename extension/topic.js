@@ -7,19 +7,18 @@
   const $=id=>panel.querySelector('#'+id), label=id=>Sites.platforms.find(p=>p.id===id)?.label||id;
   const read=async()=> (await db.get(KEY))[KEY];
   const saved=q=>db.set({[KEY]:q});
-  const next=q=>q.items.find(i=>!['done','skipped'].includes(i.state));
-  const site=q=>q.searches.find(s=>s.state==='pending');
+  const unfinished=i=>!['done','skipped'].includes(i.state);
+  const platformGate=message=>/登录|登入|验证|访问频繁|操作频繁|频率限制|平台限制访问|访问权限和扩展权限/.test(message);
   const tell=s=>{ $('topicNotice').textContent=s; };
   const names={pending:'待处理',active:'采集中',partial:'未完成',done:'已完成',skipped:'已跳过',
-    confirm:'等待确认',running:'执行中',paused:'已暂停',searching:'检索中'};
+    confirm:'旧任务待接续',attention:'本轮结束，有平台待重试',running:'执行中',paused:'已暂停',searching:'检索中'};
   panel.innerHTML=`<h2>关键词采集</h2><form id="topicForm">
     <label>检索主题<input id="topicTerm" type="search" maxlength="100" placeholder="输入关键词" required></label>
     <fieldset id="topicPlatforms"><legend>检索平台</legend></fieldset>
     <div class="topicOptions"><label>每平台作品上限<input id="topicWorks" type="number" min="1" max="50" value="5" required></label>
     <label>每篇评论上限<input id="topicComments" type="number" min="1" max="1000" value="50" required></label>
-    <label>采集方式<select id="topicMode"><option value="manual">逐个确认</option><option value="auto">自动串行</option></select></label>
-    <button id="topicStart" class="primary" type="submit">开始检索</button></div></form>
-    <div class="controls"><button id="topicNext" type="button">继续</button><button id="topicSkip" type="button">跳过</button><button id="topicPause" type="button">暂停</button></div>
+    <button id="topicStart" class="primary" type="submit">开始主题采集</button></div></form>
+    <div class="controls"><button id="topicNext" type="button">继续采集</button><button id="topicPause" type="button">暂停</button></div>
     <p id="topicNotice" role="status"></p><div id="topicProgress" aria-live="polite"></div><ol id="topicItems"></ol>`;
   for(const p of Sites.platforms){
     const l=document.createElement('label'),b=document.createElement('input');
@@ -29,20 +28,19 @@
   function paint(q){
     const rows=$('topicItems');rows.replaceChildren();
     $('topicNext').disabled=!q||q.phase==='done'||locallyRunning;
-    $('topicSkip').disabled=!q||!['confirm','paused'].includes(q.phase)||locallyRunning;
-    $('topicPause').disabled=!q||['paused','done'].includes(q.phase);
+    $('topicPause').disabled=!q||['attention','paused','done'].includes(q.phase);
     if(!q){$('topicProgress').textContent='尚无采集任务';return;}
     if(shownId!==q.id){
-      shownId=q.id;$('topicTerm').value=q.term;$('topicMode').value=q.mode;
+      shownId=q.id;$('topicTerm').value=q.term;
       $('topicWorks').value=q.works;$('topicComments').value=q.comments;
       for(const b of panel.querySelectorAll('[name=topicPlatform]'))b.checked=q.searches.some(s=>s.platform===b.value);
     }
-    $('topicNext').textContent=q.phase==='confirm'?'确认采集下一篇':(q.phase==='paused'?'继续 / 重试':'接续任务');
+    $('topicNext').textContent=q.phase==='attention'?'重试未完成的平台':'继续采集';
     const finished=q.items.filter(i=>i.state==='done').length;
-    const stage=site(q)?`${label(site(q).platform)}检索`:next(q)?.title||'';
+    const stage=q.phase==='searching'&&q.current?`${label(q.current)}检索`:q.phase==='running'?q.items.find(i=>i.state==='active')?.title||'':'';
     $('topicProgress').textContent=`${q.term} · ${names[q.phase]} · 完成 ${finished}/${q.items.length} 篇${stage?' · '+stage:''}${q.reason?' · '+q.reason:''}`;
     const searches=document.createElement('p');
-    searches.textContent=q.searches.map(s=>`${label(s.platform)} ${s.state==='pending'?'待检索':s.state==='skipped'?'跳过':'已检索'} ${q.items.filter(i=>i.platform===s.platform).length} 篇`).join(' / ');
+    searches.textContent=q.searches.map(s=>`${label(s.platform)} ${s.state==='pending'?'待检索':s.state==='skipped'?'跳过':s.state==='attention'?'待重试':'已检索'} ${q.items.filter(i=>i.platform===s.platform).length} 篇${s.note?'（'+s.note+'）':''}`).join(' / ');
     $('topicProgress').append(searches);
     for(const item of q.items){
       const li=document.createElement('li'),title=document.createElement('strong'),meta=document.createElement('small');
@@ -71,11 +69,7 @@
     if(!actual||!expected)return false;
     const w=Sites.work(expected);
     if(w)return Sites.work(actual)?.url===w.url;
-    try{
-      const a=new URL(actual),b=new URL(expected);
-      return !a.username&&!a.password&&a.origin===b.origin&&a.pathname===b.pathname&&
-        [...b.searchParams.keys()].every(k=>JSON.stringify(a.searchParams.getAll(k))===JSON.stringify(b.searchParams.getAll(k)));
-    }catch{return false;}
+    return Sites.sameSearch(actual,expected);
   };
   // A tab id is only trusted within its browser session. Never navigate or remove
   // a tab the user changed; in particular never pick a tab by URL or recency.
@@ -90,10 +84,10 @@
   }
   async function open(n,url,q){
     const existing=await owned(n);
-    if(existing && same(n.tab.url,url))return existing.id;
+    if(existing && same(n.tab.url,url)){await chrome.tabs.update(existing.id,{active:true});return existing.id;}
     await checked(q);
     await release(n);
-    const t=await chrome.tabs.create({url,active:false});
+    const t=await chrome.tabs.create({url,active:true});
     n.tab={id:t.id,url};await saveNav(n);return t.id;
   }
   const message=(id,action,extra={})=>chrome.tabs.sendMessage(id,{action,...extra});
@@ -103,7 +97,7 @@
       const t=await chrome.tabs.get(id).catch(()=>null);
       if(!t)throw Error('采集标签已关闭，请重试');
       if(t.status==='complete'){
-        if(!same(t.url,url))throw Error('页面已跳转，可能需要登录或验证；请在采集标签确认后重试');
+        if(!same(t.url,url))throw Error('页面已跳转；请先在平台完成登录或验证后重试');
         try{const p=await message(id,'topic.probe');if(p?.ok)return p;}catch{}
       }
       await wait(240);
@@ -118,7 +112,15 @@
     let stable=0,last=-1;
     for(let i=0;i<14;i++){
       await checked(q);
-      const r=await message(id,'topic.discover',{platform:s.platform,term:q.term,limit:q.works,advance:i>0});
+      const request={platform:s.platform,term:q.term,limit:q.works,advance:i>0};
+      let r;
+      try{r=await message(id,'topic.discover',request);}
+      catch(e){
+        if(!/receiving end does not exist|could not establish connection|message (channel|port).*closed/i.test(e.message))throw e;
+        await connect(q,id,url);
+        try{r=await message(id,'topic.discover',request);}
+        catch{throw Error('搜索页已跳转或无法连接，请确认平台页面可用后重试');}
+      }
       if(!r?.ok||!Array.isArray(r.rows))throw Error('尚未进入对应的搜索结果页');
       let count=q.items.filter(x=>x.platform===s.platform).length;
       for(const row of r.rows){
@@ -131,18 +133,19 @@
       await saveNav(n);
       stable=count===last?stable+1:0;last=count;
       if(r.gate){await saved(q);throw Error(`${label(s.platform)}检索：${r.gate}，已保留可见候选`);}
+      if(r.empty&&!count)throw Error('平台显示无搜索结果');
       if(count>=q.works || r.empty || (count>0&&stable>=3))break;
-      if(i===13 && !count)throw Error('未识别到结果卡，也未显示无结果；可检查页面后重试或跳过此平台');
+      if(i===13 && !count)throw Error('未识别到结果卡，也未显示无结果');
       await saved(q);await wait(650);
     }
-    s.state='done';await saved(q);
+    s.scan=true;s.state='done';await saved(q);
   }
   async function collect(q,item,n){
     item.state='active';q.phase='running';await saved(q);
     let id,started=false;
     const out=async(note)=>{
       const k='video:'+item.url,record=(await db.get(k))[k];
-      item.count=record?.comments?.length||0;item.note=note||record?.state||'采集未完成';
+      item.count=record?.comments?.length||0;item.title=record?.title||item.title;item.note=note||record?.state||'采集未完成';
     };
     try {
       const url=n.links[item.url]||item.url;id=await open(n,url,q);
@@ -183,16 +186,42 @@
       item.state='partial';await out(e.message);throw e;
     }
   }
-  async function run(q,allowOne=false){
+  async function run(q){
     const n=await navigation(q);q.reason='';
     try {
-      while(site(q)){await checked(q);await search(q,site(q),n);}
-      while(next(q)){
+      for(const s of q.searches){
+        if(['skipped','attention'].includes(s.state))continue;
+        const works=q.items.filter(i=>i.platform===s.platform);
+        // V1 marked a search "done" as soon as its cards had been discovered.
+        if(s.scan===undefined)s.scan=s.state==='done';
+        if(s.scan && !works.some(unfinished))continue;
         await checked(q);
-        if(q.mode==='manual'&&!allowOne){q.phase='confirm';await saved(q);return;}
-        allowOne=false;await collect(q,next(q),n);
+        q.current=s.platform;s.note='';
+        try{
+          if(!s.scan)await search(q,s,n);
+          const failures=[];
+          for(const item of q.items.filter(i=>i.platform===s.platform&&unfinished(i))){
+            await checked(q);
+            try{await collect(q,item,n);}
+            catch(e){
+              await checked(q);
+              if(platformGate(e.message))throw e;
+              failures.push(item);
+              await saved(q);
+            }
+          }
+          s.state=failures.length?'attention':'done';
+          if(failures.length)s.note=`${failures.length} 篇未完成：${failures[0].note}`;
+        }catch(e){
+          await checked(q); // User stop is global, platform failures are not.
+          s.state='attention';s.note=String(e.message||e).slice(0,220);
+          if(/登录|登入|验证/.test(s.note)&&!s.note.includes('后重试'))s.note+='；请先在平台完成登录或验证后重试';
+        }
+        await saved(q);
       }
-      q.phase='done';await saved(q);await release(n);await session.remove(SESSION);
+      await checked(q);
+      q.phase=q.searches.some(s=>s.state==='attention')?'attention':'done';
+      q.current='';await release(n);await saved(q);
     }catch(e){
       q.phase='paused';q.reason=String(e.message||e).slice(0,220);await saved(q);
     }
@@ -210,25 +239,21 @@
   $('topicForm').onsubmit=e=>{
     e.preventDefault();
     const term=$('topicTerm').value.trim(),works=$('topicWorks').valueAsNumber,comments=$('topicComments').valueAsNumber;
-    const mode=$('topicMode').value,platforms=[...panel.querySelectorAll('[name=topicPlatform]:checked')].map(x=>x.value);
+    const platforms=[...panel.querySelectorAll('[name=topicPlatform]:checked')].map(x=>x.value);
     if(!term || !platforms.length){tell('请输入关键词并选择至少一个平台');return;}
     action(async()=>{
       const prev=await read();
       if(prev && prev.phase!=='done' && !confirm('用新检索替换未完成队列？已保存的评论将保留。'))return;
       if(prev)await release(await navigation(prev));
       await db.remove(STOP);
-      const q={id:crypto.randomUUID(),term,works,comments,mode,phase:'searching',reason:'',searches:platforms.map(platform=>({platform,state:'pending'})),items:[]};
+      const q={id:crypto.randomUUID(),term,works,comments,phase:'searching',reason:'',searches:platforms.map(platform=>({platform,state:'pending',scan:false})),items:[]};
       await saved(q);await run(q);
     });
   };
   $('topicNext').onclick=()=>action(async()=>{
     const q=await read();if(!q||q.phase==='done')return;
-    await db.remove(STOP);await run(q,!site(q));
-  });
-  $('topicSkip').onclick=()=>action(async()=>{
-    const q=await read();if(!q||!['confirm','paused'].includes(q.phase))return;
-    const target=site(q)||next(q);if(!target)return;
-    target.state='skipped';await db.remove(STOP);await saved(q);await run(q);
+    if(q.phase==='attention')for(const s of q.searches)if(s.state==='attention')s.state=s.scan?'done':'pending';
+    await db.remove(STOP);await run(q);
   });
   $('topicPause').onclick=async()=>{
     const q=await read();if(!q||q.phase==='done')return;

@@ -20,6 +20,34 @@ const Sites = (() => {
       case 'bili':return 'https://search.bilibili.com/all?keyword='+key;
     }
   }
+  // Filters/tracking may be rewritten; ownership still requires a recognized
+  // search route and one unambiguous, decoded term. Never accept detail pages.
+  function searchPage(raw){
+    try {
+      const u=new URL(raw),path=u.pathname.replace(/\/$/,'');
+      if(u.username||u.password||u.searchParams.has('modal_id'))return null;
+      let id, pathTerm, key;
+      if(u.origin==='https://www.douyin.com' && /^\/search(?:\/[^/]+)?$/.test(path)){
+        id='douyin';key='keyword';if(path!=='/search')pathTerm=decodeURIComponent(path.slice(8));
+      }else if(u.origin==='https://www.zhihu.com'&&path==='/search'){
+        id='zhihu';key='q';
+      }else if(u.origin==='https://www.xiaohongshu.com'&&path==='/search_result'){
+        id='xhs';key='keyword';
+      }else if(u.origin==='https://s.weibo.com'&&/^\/weibo(?:\/[^/]+)?$/.test(path)){
+        id='weibo';key='q';if(path!=='/weibo')pathTerm=decodeURIComponent(path.slice(7));
+      }else if(u.origin==='https://search.bilibili.com'&&['/all','/video'].includes(path)){
+        id='bili';key='keyword';
+      }else return null;
+      const terms=u.searchParams.getAll(key);
+      if(pathTerm!=null)terms.push(pathTerm);
+      if(!terms.length||terms.some(t=>!t.trim()||t!==terms[0]))return null;
+      return {id,term:terms[0]};
+    }catch{return null;}
+  }
+  function sameSearch(actual,expected){
+    const a=searchPage(actual),b=searchPage(expected);
+    return !!a&&!!b&&a.id===b.id&&a.term===b.term;
+  }
   const patterns = [
     ['知乎文章', 'https://zhuanlan.zhihu.com', /^\/p\/[0-9]+$/,'zhihu'],
     ['知乎回答', 'https://www.zhihu.com', /^\/question\/[0-9]+\/answer\/[0-9]+$/,'zhihu'],
@@ -42,5 +70,5 @@ const Sites = (() => {
     } catch {}
     return null;
   }
-  return {work,platforms,platform,search};
+  return {work,platforms,platform,search,sameSearch,searchPage};
 })();

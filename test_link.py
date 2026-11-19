@@ -29,6 +29,7 @@ def main():
             worker=(ctx.service_workers or [ctx.wait_for_event('serviceworker')])[0]
             ident=worker.url.split('/')[2]
             ui=ctx.new_page();ui.goto('chrome-extension://'+ident+'/review.html')
+            ui.get_by_role('link',name='工具',exact=True).click()
             ui.get_by_text('连接分析工作台',exact=True).click()
             ui.locator('#port').fill(str(port));ui.locator('#pairKey').fill('wrong')
             ui.get_by_text('连接并保存',exact=True).click();ui.get_by_text('配对码不匹配',exact=True).wait_for()

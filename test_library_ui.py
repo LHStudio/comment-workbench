@@ -21,7 +21,8 @@ def main(ext, evidence=None):
     def snapshot(page, name):
         if evidence:
             evidence.mkdir(parents=True, exist_ok=True)
-            page.screenshot(path=evidence/name)
+            page.mouse.move(0,0)
+            page.screenshot(path=evidence/name,animations='disabled')
 
     with tempfile.TemporaryDirectory(ignore_cleanup_errors=True) as tmp, sync_playwright() as pw:
         ctx = pw.chromium.launch_persistent_context(tmp, headless=True,
@@ -40,6 +41,42 @@ def main(ext, evidence=None):
             ui.set_viewport_size({'width':1280,'height':840})
             ui.goto(origin+'/review.html')
             expect(ui).to_have_title('样本整理 · 评论工作台')
+            assert ui.locator('body').evaluate("e=>getComputedStyle(e).fontSize==='16px'")
+            def view(key,title):
+                expect(ui.locator('[data-page]:visible')).to_have_count(1)
+                expect(ui.locator('[data-page]:visible')).to_have_attribute('data-page',key)
+                expect(ui.get_by_role('heading',level=1)).to_have_text(title)
+                expect(ui.get_by_role('navigation').locator('[aria-current=page]')).to_have_text(title)
+                expect(ui).to_have_title(title+' · 评论工作台')
+            view('samples','样本整理')
+            ui.evaluate('window.navigationWitness={node:document.getElementById("topicPanel")}')
+            ui.get_by_role('link',name='主题采集',exact=True).click()
+            view('topic','主题采集')
+            expect(ui).to_have_url(origin+'/review.html?view=topic')
+            ui.locator('#topicTerm').fill('样本关键词')
+            ui.get_by_role('link',name='工具',exact=True).click()
+            view('tools','工具')
+            expect(ui).to_have_url(origin+'/review.html?view=tools')
+            expect(ui.locator('#batch,script[src="batch.js"]')).to_have_count(0)
+            ui.go_back()
+            view('topic','主题采集')
+            expect(ui.locator('#topicTerm')).to_have_value('样本关键词')
+            assert ui.evaluate('window.navigationWitness?.node===document.getElementById("topicPanel")')
+            snapshot(ui,'topic-desktop.png')
+            ui.set_viewport_size({'width':390,'height':844})
+            snapshot(ui,'topic-390.png')
+            assert ui.evaluate('document.documentElement.scrollWidth<=innerWidth')
+            ui.go_forward()
+            view('tools','工具')
+            ui.set_viewport_size({'width':1280,'height':840})
+            ui.get_by_text('连接分析工作台',exact=True).click()
+            snapshot(ui,'tools-desktop.png')
+            ui.emulate_media(reduced_motion='reduce')
+            assert ui.locator('[data-page]:visible').evaluate("e=>getComputedStyle(e).animationName==='none'")
+            for hash_name, expected, name in [('topicPanel','topic','主题采集'),('tools','tools','工具'),('samples','samples','样本整理')]:
+                ui.goto(origin+'/review.html#'+hash_name)
+                view(expected,name)
+                expect(ui).to_have_url(origin+'/review.html'+('' if expected=='samples' else '?view='+expected))
             data = {}
             for i, (_,_,home,path,title) in enumerate(SITES):
                 url=home+path
@@ -92,9 +129,10 @@ def main(ext, evidence=None):
             assert not cards.locator('a').count()
             popup=ctx.new_page()
             watch(popup)
-            popup.set_viewport_size({'width':360,'height':500})
+            popup.set_viewport_size({'width':480,'height':540})
             popup.goto(origin+'/popup.html')
             expect(popup).to_have_title('当前作品采集')
+            assert popup.locator('button#start').evaluate("e=>getComputedStyle(e).fontSize==='16px'")
             expect(popup.locator('#version')).to_have_text('v'+popup.evaluate('chrome.runtime.getManifest().version'))
             links=popup.locator('#platformLinks a')
             expect(links).to_have_count(5)
@@ -106,13 +144,19 @@ def main(ext, evidence=None):
                 platform.value.close()
             assert popup.evaluate('[...document.querySelectorAll("#platformLinks img")].every(i=>i.complete&&i.naturalWidth>0)')
             assert popup.evaluate('document.documentElement.scrollWidth<=innerWidth')
+            assert popup.locator('body').bounding_box()['width']==480
             snapshot(popup,'popup.png')
+            for width in [320,390]:
+                popup.set_viewport_size({'width':width,'height':600})
+                assert popup.evaluate('document.documentElement.scrollWidth<=innerWidth'),width
+            snapshot(popup,'popup-390.png')
             with ctx.expect_page() as topic:popup.locator('#openTopic').click()
-            topic.value.wait_for_url(origin+'/review.html#topicPanel')
+            topic.value.wait_for_url(origin+'/review.html?view=topic')
             expect(topic.value.locator('#topicTerm')).to_be_visible()
             assert not issues,issues
             print('PASS: 5 folded source badges + original links; platform/type/keyword filters; reset; CSV all 10 rows; unknown URL not linked.')
             print('PASS: manifest version, 5 homepage links + local icons, topic entry; widths 320/390/700/768/1280; no page errors, warnings or overflow.')
+            print('PASS: independent views, legacy hashes, canonical URLs, back/forward preserve the document and topic form; reduced motion; 16px body and actions; popup width 480.')
         finally:
             ctx.close()
 
