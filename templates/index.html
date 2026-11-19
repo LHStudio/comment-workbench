@@ -1,0 +1,11 @@
+<!DOCTYPE html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>评论分析工作台</title><link rel="stylesheet" href="/static/site.css"></head>
+<body data-key="{{pair}}"><header><strong>评论分析工作台</strong><span>本机 · {{port}}</span></header><main>
+<h1>样本分析</h1><p id="status" role="status">正在读取本地数据…</p>
+<details><summary>插件配对</summary><label>接收端口 <input value="{{port}}" readonly></label>
+<label>配对码 <input id="pair" value="{{pair}}" readonly type="password"></label><button id="copy">复制配对码</button></details>
+<section><h2>评论态度</h2><div id="stats"></div>
+<div class="tools"><label>出图范围 <select id="subset"><option>全部</option>{% for x in labels %}<option>{{x}}</option>{% endfor %}</select></label>
+<button class="primary" id="run">分析并生成词云</button><a id="csv">下载评论分析 CSV</a></div>
+<p id="caption"></p><div id="clouds"></div><p class="muted">态度针对 AI 健康咨询，不是对疾病的情绪。规则初判需要复核；词频按提及评论数统计，两类都涉及的评论会进入两个分组。</p></section>
+<section><h2>逐条复核</h2><div class="tools"><input id="q" type="search" placeholder="搜索评论或作品标题" aria-label="搜索评论或作品标题"><select id="filter" aria-label="筛选态度"><option value="">所有态度</option>{% for x in labels %}<option>{{x}}</option>{% endfor %}</select><button id="prev">上一页</button><span id="page"></span><button id="next">下一页</button></div>
+<div id="rows"></div></section></main><script src="/static/site.js"></script></body></html>

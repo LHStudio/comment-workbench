@@ -1,0 +1,7 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><title>当前作品采集</title><link rel="stylesheet" href="ui.css"></head>
+<body class="popup"><header><strong class="brand">评论工作台</strong><small>本地工作区</small></header>
+<main><h1 id="heading">采集当前作品</h1><label for="limit">每个作品的评论上限</label>
+<div class="settings"><input id="limit" type="number" min="1" max="1000" step="1" value="50" required><span>条</span><div class="presets"><button data-n="50">50</button><button data-n="100">100</button><button data-n="300">300</button></div></div>
+<div class="meter"><span id="phase">就绪</span><b id="count">0 / 50</b></div><progress id="bar" value="0" max="50"></progress>
+<div class="actions"><button class="primary" id="start">开始采集</button><button id="stop" disabled>停止</button></div>
+<output id="msg" role="status"></output></main><footer><button class="link" id="review">打开样本整理 →</button></footer><script src="sites.js"></script><script src="popup.js"></script></body></html>

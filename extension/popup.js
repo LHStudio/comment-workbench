@@ -1,0 +1,29 @@
+const $=id=>document.getElementById(id);
+async function request(action,params={}){
+  const [tab]=await chrome.tabs.query({active:true,currentWindow:true});
+  const platform=Sites.work(tab?.url)?.label || (tab?.url?.startsWith('https://www.douyin.com/')?'抖音视频':'');
+  $('heading').textContent=platform?'采集'+platform:'采集当前作品';
+  if(!platform)throw Error('请打开抖音作品、知乎专栏文章或回答详情');
+  return chrome.tabs.sendMessage(tab.id,{action,...params});
+}
+function draw(count,limit){$('count').textContent=`${count} / ${limit}`;$('bar').max=limit;$('bar').value=count;}
+async function poll(){
+  try{
+    const p=await request('status');if(!p?.ok)return;
+    $('phase').textContent=p.state;$('start').disabled=p.running;$('stop').disabled=!p.running;
+    $('limit').disabled=p.running;document.querySelectorAll('[data-n]').forEach(b=>b.disabled=p.running);
+    if(p.running&&p.limit)$('limit').value=p.limit;
+    draw(p.count||0,Number($('limit').value)||100);
+  }catch(e){$('phase').textContent=e.message.includes('请打开')?e.message:'未连接，请刷新作品页';$('start').disabled=true;$('stop').disabled=true;}
+}
+document.querySelectorAll('[data-n]').forEach(b=>b.onclick=()=>{$('limit').value=b.dataset.n;poll();});
+$('start').onclick=async()=>{
+  if(!$('limit').reportValidity())return;
+  try{const limit=Number($('limit').value);const result=await request('start',{limit});
+    if(!result?.ok)throw Error(result?.message||'未启动');
+    await chrome.storage.local.set({captureLimit:limit});$('msg').textContent='';await poll();
+  }catch(e){$('msg').textContent=`${e.message}。更新插件后请刷新作品页。`;}
+};
+$('stop').onclick=async()=>{try{await request('stop');$('phase').textContent='正在停止';}catch(e){$('msg').textContent=e.message;}};
+$('review').onclick=()=>chrome.tabs.create({url:chrome.runtime.getURL('review.html')});
+chrome.storage.local.get('captureLimit').then(v=>{$('limit').value=v.captureLimit||50;poll();setInterval(poll,1200);});

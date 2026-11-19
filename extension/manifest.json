@@ -1,0 +1,10 @@
+{
+ "manifest_version":3, "name":"评论工作台 · 抖音与知乎", "version":"0.5.0",
+ "description":"采集当前作品标题与已加载评论，可整理后发送至本机工作台。",
+ "permissions":["activeTab","storage","tabs"],
+ "host_permissions":["https://www.douyin.com/*","https://zhuanlan.zhihu.com/*","https://www.zhihu.com/*","http://127.0.0.1/*"],
+ "background":{"service_worker":"bridge.js"},
+ "action":{"default_title":"采集当前作品","default_popup":"popup.html"},
+ "content_scripts":[{"matches":["https://www.douyin.com/*"],"js":["sites.js","content.js"],"run_at":"document_idle"},
+ {"matches":["https://zhuanlan.zhihu.com/*","https://www.zhihu.com/*"],"js":["sites.js","zhihu.js","content.js"],"run_at":"document_idle"}]
+}

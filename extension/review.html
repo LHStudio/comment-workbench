@@ -1,0 +1,13 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>样本整理 · 评论工作台</title><link rel="stylesheet" href="ui.css"></head>
+<body class="workspace"><header><strong>评论工作台</strong><small>本地工作区</small></header><main>
+<h1>样本整理</h1><div id="stats" class="summary"></div>
+<details><summary>连接分析工作台</summary><form id="pairForm" class="controls">
+<label>本机端口 <input id="port" type="number" min="1024" max="65535" value="8765" required></label>
+<label>配对码 <input id="pairKey" type="password" autocomplete="off" required></label>
+<label><input id="autoSend" type="checkbox" checked>采集后自动发送</label>
+<button>连接并保存</button><button id="push" type="button">发送全部保留样本</button><button id="disconnect" type="button">断开</button>
+</form><output id="bridgeStatus" role="status"></output></details>
+<div class="controls"><input id="search" type="search" aria-label="搜索样本" placeholder="搜索作品、昵称或评论"><button id="refresh">刷新</button><button id="manage">类型管理</button><button class="primary" id="export">导出评论 CSV</button><button id="clear" class="danger">清空所有样本</button></div>
+<dialog id="settings"><form method="dialog"><h2>作品类型管理</h2><button aria-label="关闭">关闭</button></form><div id="types"></div><form id="addtype"><input id="typename" aria-label="新类型名称" placeholder="新类型名称" maxlength="40" required><button>添加类型</button></form></dialog>
+<div class="controls"><input id="batchTab" type="number" min="1" aria-label="绑定已有抖音标签页编号" placeholder="已有抖音标签页编号（可留空）"><button id="batch">抖音批量采集：50 条/视频</button><button id="halt">停止批次</button><small id="batchStatus">目标 2,000 条</small></div>
+<output id="notice" role="status"></output><div id="list"></div></main><script src="review.js"></script><script src="batch.js"></script><script src="pair.js"></script></body></html>
