@@ -109,8 +109,11 @@ def report(rows, directory, subset='全部'):
         for name in GROUPS:
             if name=='整体' or name==g or g=='两类':
                 sizes[name]+=1;counts[name].update(words)
-        filtered.append([r['rid'],r['title'],r['url'],r['body'],r['stamp'],g,basis,auto,why,r['manual'],label,'、'.join(sorted(words))])
-    csvfile(directory/'评论分析.csv',['分析编号','作品标题','作品链接','评论正文','采集时间','模型组','分组依据','自动态度','规则依据','人工改判','最终态度','主题词'],filtered)
+        level=r['depth'] or ('楼中楼（级数未知）' if r['is_reply'] else '未知')
+        filtered.append([r['rid'],r['title'],r['url'],r['body'],r['stamp'],g,basis,auto,why,r['manual'],label,'、'.join(sorted(words)),
+                         level,r['ref'],r['parent_ref'],r['root_ref']])
+    csvfile(directory/'评论分析.csv',['分析编号','作品标题','作品链接','评论正文','采集时间','模型组','分组依据','自动态度','规则依据','人工改判','最终态度','主题词',
+                                  '评论层级','评论标识','父评论标识','所属主评标识'],filtered)
     for g in GROUPS:
         csvfile(directory/(g+'词频.csv'),['词语','提及评论数'],sorted(counts[g].items(),key=lambda kv:(-kv[1],kv[0])))
         draw(directory/(g+'.png'),counts[g],g,sizes[g],subset)

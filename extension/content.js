@@ -45,13 +45,28 @@
     const key='video:'+url;
     const prior=(await chrome.storage.local.get(key))[key];
     const combined=new Map((prior?.comments||[]).map(c=>[c.key,c]));
-    for(const [key,c] of comments) if(!combined.has(key)) combined.set(key,{key,text:c.text,nickname:c.nickname,capturedAt:c.capturedAt,deleted:false});
+    for(const [key,c] of comments){
+      const old=combined.get(key);
+      combined.set(key,{key,text:c.text,nickname:c.nickname,capturedAt:c.capturedAt,deleted:false,...old,
+        ...(c.ref?{ref:c.ref}:{}),...(c.depth?{depth:c.depth}:{}),...(c.isReply?{isReply:true}:{}),
+        ...(c.rootRef?{rootRef:c.rootRef}:{}),...(c.parentRef?{parentRef:c.parentRef}:{})});
+    }
     await chrome.storage.local.set({[key]:{...prior,title:title||prior?.title||'',url,comments:[...combined.values()],state,createdAt:prior?.createdAt||prior?.updated||new Date().toISOString(),updated:new Date().toISOString()}});
   }
   async function run(limit=50){
     if(!Number.isInteger(limit)||limit<1||limit>1000) throw Error('每个作品的上限须为 1 到 1000 的整数');
     if(running || !videoUrl()) return; running=true; stopped=false; let rounds=0, idle=0; const seen=new Map(); let title='';
-    const url=videoUrl(), known=new Set();
+    const url=videoUrl(), known=new Set(),localRefs=new Map();
+    const keyOf=c=>c.id?'id:'+c.id:'row:'+JSON.stringify([c.nickname,c.text]);
+    async function reference(c){
+      if(c.ref)return c.ref;
+      const k=keyOf(c);
+      if(!localRefs.has(k)){
+        const hash=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([url,k])));
+        localRefs.set(k,'local:'+Array.from(new Uint8Array(hash),x=>x.toString(16).padStart(2,'0')).join(''));
+      }
+      return localRefs.get(k);
+    }
     let opened=false, pendingPage=null, pageWait=0;
     progress={url,count:0,limit,state:'正在打开评论区'};
     const save=async (name,items,state,completed=false)=>{
@@ -62,8 +77,8 @@
     try {
       const key='video:'+url;
       const prior=(await chrome.storage.local.get(key))[key];
-      for(const c of prior?.comments||[]) known.add(c.key);
-      if(known.size>=limit){title=prior?.title;await finish();return;}
+      for(const c of prior?.comments||[]){known.add(c.key);if(c.ref)localRefs.set(c.key,c.ref);}
+      if(known.size>=limit && typeof Weibo==='undefined'){title=prior?.title;await finish();return;}
       for(;rounds<200 && !stopped;rounds++){
         if(videoUrl()!==url){await save(title,seen,'已切换作品，原作品采集停止');return;}
         const s=snapshot();
@@ -80,10 +95,15 @@
         }
         let before=seen.size;
         for (const c of s.comments){
-          const key=c.id?'id:'+c.id:'row:'+JSON.stringify([c.nickname,c.text]);
-          if(known.has(key)||known.has('text:'+c.text)) continue;
+          let key=keyOf(c);
+          if(!known.has(key)&&known.has('text:'+c.text))key='text:'+c.text;
+          if(known.has(key)&&typeof Weibo==='undefined')continue;
+          if(!known.has(key)&&known.size>=limit)continue;
+          if(typeof Weibo!=='undefined'){
+            c.ref=await reference(c);
+            if(c.threadRoot&&!c.rootRef)c.rootRef=await reference(c.threadRoot);
+          }
           known.add(key); seen.set(key,c);
-          if(known.size===limit) break;
         }
         if(known.size>=limit){await finish();return;}
         if(!s.comments.length && !seen.size){
@@ -103,9 +123,16 @@
           pendingPage=signature;pageWait=0;idle=0;
           await wait(500);continue;
         }
-        if(!box){await finish();return;}
-        idle=seen.size===before && box.scrollTop+box.clientHeight>=box.scrollHeight-2?idle+1:0;
-        if(idle>=6){await finish();return;}
+        const atEnd=!box || box.scrollTop+box.clientHeight>=box.scrollHeight-2;
+        idle=seen.size===before && atEnd?idle+1:0;
+        if((!box&&typeof Weibo==='undefined') || idle>=6){
+          if(typeof Weibo!=='undefined'&&(s.collapsed||s.expected>known.size))
+            await save(title,seen,`已保存 ${known.size} 条；${s.collapsed?'仍有折叠回复，请展开后继续采集':'页面计数更多，未确认全部加载'}`);
+          else if(typeof Weibo!=='undefined')await save(title,seen,`已保存当前可读的 ${known.size} 条评论`,true);
+          else await finish();
+          return;
+        }
+        if(!box || (typeof Weibo!=='undefined'&&atEnd)){await wait(650);continue;}
         box.scrollTop=Math.min(box.scrollHeight,box.scrollTop+Math.max(100,Math.floor(box.clientHeight*.85)));
         await wait(2000);
       }

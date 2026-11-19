@@ -8,6 +8,7 @@ const rk=(k,c)=>'review:'+JSON.stringify([k,c.key]);
 const kept=(k,c)=>!(all[rk(k,c)]?.dropped??c.deleted);
 const group=(k,v)=>all[vk(k)]?.group||v.group||'unknown';
 const name=id=>types.find(t=>t[0]===id)?.[1]||'未设置';
+const level=c=>c.depth|| (c.isReply?'楼中楼（级数未知）':'未知');
 function el(tag,text){let e=document.createElement(tag);if(text!=null)e.textContent=text;return e;}
 function btn(text,fn){const e=el('button',text);e.onclick=fn;return e;}
 function fmt(t){return t&&Number.isFinite(Date.parse(t))?new Date(t).toLocaleString('zh-CN',{hour12:false}):'未记录';}
@@ -27,9 +28,12 @@ function render(){
   select.value=types.some(([id])=>id===group(k,v))?group(k,v):'unknown';
   select.onchange=()=>edit(vk(k),{group:select.value});
   bar.append(el('label','作品类型'),select);
+  const numbers=new Map(rows.map((c,i)=>[c.ref,i+1]).filter(([ref])=>ref));
   const fill=()=>{ul.replaceChildren();if(!d.open)return;
    for(const c of matching){const li=el('li'),info=el('div');
-    info.append(el('small',`${c.nickname||'昵称未记录'} · ${fmt(c.capturedAt)}`),el('div',c.text));
+    const link=r=>numbers.has(r)?`#${numbers.get(r)}`:'不在当前样本';
+    const relation=c.parentRef?' · 回复 '+link(c.parentRef):c.isReply?' · 直接回复对象未知':'';
+    info.append(el('small',`${c.ref?'#'+numbers.get(c.ref)+' · ':''}${c.depth?'第 '+c.depth+' 级':c.isReply?level(c):'层级未知'}${relation}${c.rootRef?' · 所属主评 '+link(c.rootRef):''} · ${c.nickname||'昵称未记录'} · ${fmt(c.capturedAt)}`),el('div',c.text));
     li.append(info,btn('移出样本',async()=>{await edit(rk(k,c),{dropped:true});render();}));ul.append(li);}
   };
   d.append(s,bar,ul);d.open=!!q||opened.has(k);
@@ -77,8 +81,8 @@ $('clear').onclick=()=>removeSamples(null);
 $('refresh').onclick=load;$('search').oninput=render;
 const cell=x=>{let s=String(x??'');if(/^\s*[=+@-]|^[\t\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
 $('export').onclick=async()=>{
- await load();const rows=[['作品标题','作品链接','作品类型','评论人昵称','评论正文','采集时间','作品最近采集时间']];
- for(const [k,v] of vids())for(const c of v.comments)if(kept(k,c))rows.push([v.title,v.url,name(group(k,v)),c.nickname,c.text,c.capturedAt,v.updated]);
+ await load();const rows=[['作品标题','作品链接','作品类型','评论人昵称','评论正文','采集时间','作品最近采集时间','评论层级','评论标识','父评论标识','所属主评标识']];
+ for(const [k,v] of vids())for(const c of v.comments)if(kept(k,c))rows.push([v.title,v.url,name(group(k,v)),c.nickname,c.text,c.capturedAt,v.updated,level(c),c.ref,c.parentRef,c.rootRef]);
  const a=el('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));a.download='评论工作台_原始评论.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 };
 load();

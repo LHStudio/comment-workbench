@@ -27,7 +27,8 @@ async function sync(cfg,only){
   const group=all['review:'+JSON.stringify([k])]?.group||v.group||'unknown';
   for(const c of v.comments){
    if(!c.key||!c.text||(all['review:'+JSON.stringify([k,c.key])]?.dropped??c.deleted))continue;
-   rows.push({url:v.url,title:v.title||'',group,key:c.key,text:c.text,nickname:c.nickname||'',capturedAt:c.capturedAt||''});
+   rows.push({url:v.url,title:v.title||'',group,key:c.key,text:c.text,nickname:c.nickname||'',capturedAt:c.capturedAt||'',
+     ref:c.ref||'',parentRef:c.parentRef||'',rootRef:c.rootRef||'',depth:c.depth||0,isReply:!!c.isReply});
   }
  }
  let added=0,dups=0;

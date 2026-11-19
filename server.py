@@ -29,6 +29,11 @@ class Library:
               key text not null,title text not null,nick text not null,body text not null,stamp text not null,
               hint text not null default '',manual text not null default '',unique(url,key))''')
             c.execute('create table if not exists meta(k text primary key,v text)')
+            existing={r['name'] for r in c.execute('pragma table_info(comments)')}
+            for col, kind in [('ref',"text not null default ''"),('parent_ref',"text not null default ''"),
+                              ('root_ref',"text not null default ''"),('depth','integer not null default 0'),
+                              ('is_reply','integer not null default 0')]:
+                if col not in existing:c.execute(f'alter table comments add column {col} {kind}')
             c.execute("insert or ignore into meta values('pair',?)",(secrets.token_urlsafe(18),))
             self.pair=c.execute("select v from meta where k='pair'").fetchone()[0]
         self.lock=threading.Lock()
@@ -49,13 +54,21 @@ class Library:
             if key.startswith('id:'):key=key[3:]
             elif key.startswith('row:'):key=key[4:]
             if not key:raise ValueError('无效评论标识')
-            values.append((url,key,field('title',5000),field('nickname',500),body,field('capturedAt',100),field('group',160)))
+            depth,reply=row.get('depth',0),row.get('isReply',False)
+            if type(depth) is not int or not 0<=depth<=1000 or type(reply) is not bool:raise ValueError('评论层级无效')
+            values.append((url,key,field('title',5000),field('nickname',500),body,field('capturedAt',100),field('group',160),
+                           field('ref',180),field('parentRef',180),field('rootRef',180),depth,int(reply)))
         with closing(self.connect()) as c,c:
             c.execute('begin immediate')
             before=c.execute('select count(*) from comments').fetchone()[0]
-            c.executemany('''insert into comments(url,key,title,nick,body,stamp,hint) values(?,?,?,?,?,?,?)
+            c.executemany('''insert into comments(url,key,title,nick,body,stamp,hint,ref,parent_ref,root_ref,depth,is_reply) values(?,?,?,?,?,?,?,?,?,?,?,?)
              on conflict(url,key) do update set nick=case when comments.nick='' then excluded.nick else comments.nick end,
-             hint=case when excluded.hint not in ('','unknown') then excluded.hint else comments.hint end''',values)
+             hint=case when excluded.hint not in ('','unknown') then excluded.hint else comments.hint end,
+             ref=coalesce(nullif(excluded.ref,''),comments.ref),
+             parent_ref=coalesce(nullif(excluded.parent_ref,''),comments.parent_ref),
+             root_ref=coalesce(nullif(excluded.root_ref,''),comments.root_ref),
+             depth=coalesce(nullif(excluded.depth,0),comments.depth),
+             is_reply=max(comments.is_reply,excluded.is_reply)''',values)
             after=c.execute('select count(*) from comments').fetchone()[0]
         return dict(received=len(rows),added=after-before,duplicate=len(rows)-(after-before),total=after)
     def seed(self,path):
