@@ -20,20 +20,21 @@
     bili: 'a[href*="/video/"]',
   };
   function gate() {
-    const captcha = [...document.querySelectorAll('[id*="captcha" i],[class*="captcha" i],[class*="verify-dialog" i],iframe[src*="captcha" i]')].some(visible);
-    if(captcha || /验证码|安全验证|验证中心/.test(document.title)) return '需要安全验证';
+    const captcha = [...document.querySelectorAll('[id*="captcha" i],[class*="captcha" i],[class*="verify-dialog" i],.geetest_panel,.geetest_panel_box,iframe[src*="captcha" i]')].some(visible);
+    if(captcha || /验证码|安全验证|验证中心|人机验证|访问验证/.test(document.title)) return '需要安全验证';
     const prompts = [...document.querySelectorAll('[role="dialog"],dialog,[class*="login-modal" i],[class*="login-mask" i],[class*="login-guide" i],[class*="login-container" i],.Modal-wrapper,[role="alert"],[class*="error-page" i],[class*="access-denied" i]')].filter(visible);
     const messages = prompts.map(e=>clean(e.innerText)).concat(document.title);
     const body = document.body?.innerText?.trim() || '';
     if (body.length < 500) messages.push(...body.split('\n').map(s=>s.trim()).filter(s=>s.length<85));
-    if(messages.some(t=>/安全验证|拖动滑块|人机验证|完成验证|访问频繁|操作(?:过于|太)频繁/.test(t)))return '需要安全验证或平台限制访问';
+    if(messages.some(t=>/安全验证|拖动滑块|人机验证|完成验证|验证码/.test(t)))return '需要安全验证';
+    if(messages.some(t=>/访问频繁|操作(?:过于|太)频繁/.test(t)))return '平台限制访问';
     if(messages.some(t=>/权限不足|暂无权限|无权(?:查看|访问)|仅(?:粉丝|自己|好友)可见|没有访问权限|内容不可见|内容不存在|作品已删除/.test(t)))return '无权访问或作品不可见';
     if(prompts.some(e=>/登录|登入/.test(clean(e.innerText))) ||
        messages.some(t=>/(?:请先|必须|需要|立即)登录|登录后(?:才可|即可|可)?(?:查看|浏览|继续|搜索)|请登录(?:后|以)|登录(?:后)?可见/.test(t)))return '需要登录后继续';
     return '';
   }
   function discover(platform, limit) {
-    const found = new Map();
+    const found = new Map(),questions=new Set();
     const resultAreas='main,[role="main"],[role="list"],#waterFallScrollContainer,#pl_feedlist_index,.Search-container,.feeds-container,.video-list,[data-e2e="search-result"],[class*="search-result" i]';
     // Known cards can be outside semantic landmarks. Generic work links need
     // a result-area ancestor; exclude sidebar cards even if their class matches.
@@ -48,6 +49,7 @@
         try { u = new URL(raw, location.href); } catch { return false; }
         if(platform==='douyin' && u.origin===location.origin && /^\/search\//.test(u.pathname) && /^\d{15,22}$/.test(u.searchParams.get('modal_id')||''))u=new URL('/video/'+u.searchParams.get('modal_id'),location.origin);
         const w = Sites.work(u.href);
+        if(platform==='zhihu'&&!w){const q=Sites.question(u.href);if(q&&questions.size<limit)questions.add(q.url);}
         if(w?.platform!==platform)return false;
         const row={url:w.url,title:clean(title) || w.label};
         if(platform==='xhs' && u.search)row.openUrl=u.origin+u.pathname+u.search;
@@ -70,15 +72,42 @@
       if(found.size>=limit)break;
     }
     const empty=[...document.querySelectorAll('[class*="empty" i],[class*="no-result" i],.card-no-result,[data-e2e="search-no-result"]')].some(e=>visible(e)&&/无|没有|未找到|暂无|未搜到/.test(e.innerText));
-    return {rows:[...found.values()].slice(0,limit),empty};
+    return {rows:[...found.values()].slice(0,limit),questions:[...questions],empty};
   }
   function advance(){
     const box=document.querySelector('#waterFallScrollContainer');
     const scroller=box&&visible(box)&&box.scrollHeight>box.clientHeight?box:document.scrollingElement;
     scroller?.scrollBy(0,Math.max(scroller.clientHeight*.85,320));
   }
+  let notice,noticeTimer;
+  function showNotice(mode){
+    const captions={active:'正在自动采集，请暂勿操作此页',verify:'请在本页完成人机验证，通过后将自动继续',paused:'采集已暂停，可操作本页'};
+    clearTimeout(noticeTimer);
+    if(!captions[mode]){notice?.remove();notice=null;return;}
+    if(!notice){
+      notice=document.createElement('cwb-page-notice');
+      notice.style.cssText='all:initial!important;display:block!important;position:fixed!important;right:12px!important;top:12px!important;max-width:calc(100vw - 24px)!important;z-index:2147483647!important;pointer-events:none!important;';
+      notice.setAttribute('role','status');
+      const box=document.createElement('span');
+      box.style.cssText='display:block;padding:8px 12px;border-radius:5px;box-shadow:0 2px 8px #0003;color:white;font:600 14px/1.5 system-ui,sans-serif;overflow-wrap:anywhere;pointer-events:none';
+      notice.attachShadow({mode:'open'}).append(box);
+      // Outside the scraped body so our own prompt cannot trigger gate().
+      document.documentElement.append(notice);
+    }
+    if(notice.getAttribute('aria-label')!==captions[mode]){
+      notice.setAttribute('aria-label',captions[mode]);
+      const box=notice.shadowRoot.firstChild;
+      box.style.background=mode==='verify'?'#864200':'#204c50';box.textContent=captions[mode];
+    }
+    noticeTimer=setTimeout(()=>showNotice(''),8000);
+  }
   chrome.runtime.onMessage.addListener((m,s,reply)=>{
-    if(m.action==='topic.probe') {reply({ok:true,gate:gate()});return;}
+    if(m.action==='topic.notice'){showNotice(m.mode);reply({ok:true});return;}
+    if(m.action==='topic.probe') {
+      const g=gate();
+      if(m.notify)showNotice(g==='需要安全验证'?'verify':'active');
+      reply({ok:true,gate:g});return;
+    }
     if(m.action!=='topic.discover')return;
     const expected=Sites.search(m.platform,m.term);
     if(!expected || !cards[m.platform]){reply({ok:false});return;}

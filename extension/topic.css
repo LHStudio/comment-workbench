@@ -22,6 +22,19 @@
 #topicItems small{display:block}
 #topicProgress{overflow-wrap:anywhere;color:var(--muted);padding:9px 0;font-size:14px}
 #topicProgress p{margin:4px 0}
+#topicMonitor{padding:14px var(--pad);border-block:1px solid var(--line);background:white;overflow-wrap:anywhere}
+#topicMonitor[hidden]{display:none}
+#topicMonitor .meter{display:flex;align-items:center;justify-content:space-between;gap:10px}
+#topicBar{width:100%;height:9px;accent-color:#18714c;margin:8px 0}
+#topicNow{font-weight:600;font-size:15px}
+#topicAddress{display:block;color:var(--muted);margin-block:3px}
+#topicLocate{margin-top:5px}
+#topicItems [aria-current=step]{border-inline-start:3px solid #21734e;background:#edf7f0}
+#topicMonitor:is([data-state=running],[data-state=searching]) #topicNow::before,
+#topicMonitor[data-state=verifying] #topicNow::before{content:'';display:inline-block;width:9px;height:9px;border-radius:50%;background:#228156;margin-inline-end:8px}
+#topicMonitor[data-state=verifying] #topicNow::before{background:#ac6a10}
+@keyframes collecting{50%{opacity:.42;transform:scale(.82)}}
+@media(prefers-reduced-motion:no-preference){#topicMonitor:is([data-state=running],[data-state=searching]) #topicNow::before{animation:collecting 1.4s ease-in-out infinite}}
 @media(max-width:540px){
  .topicOptions{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
  .topicOptions input[type=number],.topicOptions select,.topicOptions label{width:100%}

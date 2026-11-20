@@ -6,7 +6,9 @@ const Zhihu = (() => {
   const visible = n => n && n.getClientRects().length && getComputedStyle(n).visibility !== 'hidden';
   let openedFrom=null;
   const dialogs=()=>[...document.querySelectorAll('[role="dialog"],.Modal-inner')].filter(visible);
-  const isComments=p=>/评论/.test(p.innerText) && (p.querySelector(item) || p.querySelector(body));
+  const emptyText=s=>/^(?:暂无评论|还没有评论|暂时没有评论|目前还没有评论|暂无评论，来发表第一条评论吧)[。！!]?$/u.test(s.trim());
+  const empty=p=>!!p&&[p,...p.querySelectorAll('[class*="empty" i],p,span')].some(e=>visible(e)&&emptyText(e.innerText)&&!e.closest(item));
+  const isComments=p=>/评论/.test(p.innerText) && (p.querySelector(item) || p.querySelector(body) || empty(p));
   const answer = () => {
     const id = location.pathname.match(/\/answer\/(\d+)/)?.[1];
     if (!id) return null;
@@ -25,9 +27,31 @@ const Zhihu = (() => {
     const owned=p=>!!current && p.closest('.AnswerItem')===current;
     const detached=p=>!p.closest('.AnswerItem') && (!multi ||
       (openedFrom?.url===location.href && openedFrom.owner===current && !openedFrom.existing.has(p)));
-    return all.find(owned) || dialogs().filter(isComments).find(p=>owned(p)||detached(p)) ||
+    return dialogs().filter(isComments).find(p=>owned(p)||detached(p)) || all.find(owned) ||
       all.find(detached);
   }
+  function context(){
+    const a=answer(),m=location.pathname.match(/^\/question\/(\d+)\/answer\/(\d+)\/?$/);
+    if(!a||!m)return null;
+    const rich=[...a.querySelectorAll('.RichContent-inner,.RichText,[itemprop="articleBody"]')].find(e=>visible(e)&&!e.closest(panels));
+    const author=a.querySelector('.AuthorInfo .UserLink-link,.AuthorInfo-name,[itemprop="author"] [itemprop="name"]');
+    return {questionId:m[1],answerId:m[2],author:(author?.innerText||author?.content||'').trim(),text:rich?.innerText.trim()||''};
+  }
+  chrome.runtime.onMessage.addListener((msg,s,reply)=>{
+    if(msg.action!=='zhihu.answers')return;
+    const q=Sites.question(location.href);
+    if(!q||q.url!==msg.url){reply({ok:false});return;}
+    const rows=new Map(),title=document.querySelector('h1.QuestionHeader-title,h1')?.innerText||'知乎问题';
+    for(const a of document.querySelectorAll('.AnswerItem')){
+      if(!visible(a))continue;
+      const id=a.dataset.answerId||a.dataset.zop?.match(/"itemId"\s*:\s*"?(\d+)"?/)?.[1]||a.getAttribute('name');
+      const links=[...a.querySelectorAll('meta[itemprop="url"],a[itemprop="url"],.ContentItem-time a[href]')];
+      const url=links.map(x=>Sites.work(x.content||x.href)?.url).find(u=>u?.startsWith(q.url+'/answer/'))||
+        (/^\d+$/.test(id)?q.url+'/answer/'+id:null);
+      if(url)rows.set(url,{url,title:title+' · 回答 '+url.split('/').pop()});
+    }
+    reply({ok:true,title,rows:[...rows.values()]});
+  });
   function snapshot(relate){
     const p=panel(), records=[];
     const title=document.querySelector('h1.Post-Title,h1.QuestionHeader-title,article h1,h1')?.innerText.trim()||'';
@@ -47,15 +71,16 @@ const Zhihu = (() => {
     }
     const comments=relate(records,{site:'zh',root:'.NestComment--rootComment,.CommentItem,.CommentItemV2',
       reply:'.NestComment--child',group:'.NestComment',replyGroup:'.NestComment--child,.NestComment-childList'});
-    return {title,comments,rowCount:p?.querySelectorAll(item).length||0,
+    return {title,comments,empty:!comments.length&&empty(p),rowCount:p?.querySelectorAll(item).length||0,
       challenge:/安全验证|验证码/.test(document.title)||[...document.querySelectorAll('[class*="Captcha"],.SignFlow,.SignFlowModal')].some(visible)};
   }
   function open(){
-    if(panel())return;
+    const p=panel();
+    if(p&&(p.querySelector(item)||empty(p)))return false;
     const scope=answer() || (location.hostname==='zhuanlan.zhihu.com'?document:null);
     const b=[...(scope?.querySelectorAll('button,[role="button"]')||[])].find(e=>visible(e)&&!e.disabled&&
       [e.innerText,e.getAttribute('aria-label'),e.title].some(s=>
-        /^(?:添加评论|(?:查看|展开|打开)?\s*(?:[\d,.]+(?:万)?\+?\s*条?\s*)?评论(?:区)?)$/.test((s||'').trim())));
+        /^(?:添加评论|(?:查看|展开|打开)?\s*(?:[\d,.]+(?:万)?\+?\s*条?\s*)?评论(?:区)?(?:\s*[\d,.]+(?:万)?\+?)?)$/.test((s||'').trim())));
     if(!b)return false;
     openedFrom={url:location.href,owner:scope,existing:new Set([...dialogs(),...[...document.querySelectorAll(panels)].filter(visible)])};
     b.click();
@@ -78,5 +103,5 @@ const Zhihu = (() => {
     }
     return null;
   }
-  return {snapshot,open,scroll,next};
+  return {snapshot,open,scroll,next,context};
 })();

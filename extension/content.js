@@ -108,7 +108,8 @@
         }
       }
     }
-    await chrome.storage.local.set({[key]:{...prior,title:title||prior?.title||'',url,comments:[...combined.values()],state,createdAt:prior?.createdAt||prior?.updated||new Date().toISOString(),updated:new Date().toISOString()}});
+    const answer=typeof Zhihu!=='undefined'&&videoUrl()===url&&Zhihu.context();
+    await chrome.storage.local.set({[key]:{...prior,...(answer?{answer:{...answer,text:answer.text||prior?.answer?.text||'',author:answer.author||prior?.answer?.author||''}}:{}),title:title||prior?.title||'',url,comments:[...combined.values()],state,createdAt:prior?.createdAt||prior?.updated||new Date().toISOString(),updated:new Date().toISOString()}});
   }
   async function run(limit=50,readVisibleOnly=false){
     if(!Number.isInteger(limit)||limit<1||limit>1000) throw Error('每个作品的上限须为 1 到 1000 的整数');
@@ -182,7 +183,10 @@
             const button=(active()||document).querySelector('[data-e2e="feed-comment-icon"]');
             if(visible(button)) button.click();
           }
-          if(rounds<(s.loading?15:5)){await wait(1000);continue;}
+          if(rounds<(s.loading||typeof Zhihu!=='undefined'?15:5)){await wait(1000);continue;}
+          if(typeof Zhihu!=='undefined'&&!s.rowCount){
+            await save(title,seen,opened?'已尝试展开评论，等待后仍无评论或空列表提示':'未识别到当前作品的评论入口或空列表提示');return;
+          }
           await save(title,seen,s.rowCount?`已找到 ${s.rowCount} 个评论项，但未识别正文`:'未加载评论；请确认评论区已展开');return;
         }
         await save(title,seen,`采集中：${known.size} / ${limit}`);

@@ -9,6 +9,14 @@ for(const {id,label,home} of Sites.platforms){
 }
 async function request(action,params={}){
   const [tab]=await chrome.tabs.query({active:true,currentWindow:true});
+  const question=Sites.question(tab?.url);
+  if(question){
+    $('heading').textContent='采集知乎问题下的回答';$('start').textContent='选择回答采集上限';
+    if(action==='start'){
+      await chrome.tabs.create({url:chrome.runtime.getURL('review.html?view=topic&question='+encodeURIComponent(question.url))});
+    }
+    return {ok:true,state:'问题回答列表',running:false};
+  }
   const platform=Sites.work(tab?.url)?.label || (tab?.url?.startsWith('https://www.douyin.com/')?'抖音视频':'');
   $('heading').textContent=platform?'采集'+platform:'采集当前作品';
   if(!platform)throw Error('请打开微博正文、B站视频、小红书笔记、抖音作品或知乎文章／回答详情');

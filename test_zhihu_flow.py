@@ -33,7 +33,8 @@ def main():
         try:
             worker = (ctx.service_workers or [ctx.wait_for_event('serviceworker')])[0]
             page = ctx.new_page()
-            page.route('**/*', lambda r: r.fulfill(content_type='text/html; charset=utf-8', body=FIXTURE))
+            html=FIXTURE
+            page.route('**/*', lambda r: r.fulfill(content_type='text/html; charset=utf-8', body=html))
             page.goto(URL)
             ui = ctx.new_page()
             ui.goto(worker.url.rsplit('/', 1)[0]+'/review.html')
@@ -54,6 +55,28 @@ def main():
             rows=[c['text'] for c in result['comments']]
             print(result['title'], rows)
             assert result['title']=='示例问题' and rows==['第一条','第二条'], result['state']
+            for n,markup,expect in [
+                (35,'<div class="Comments-container"><div class="EmptyState">暂无评论</div></div>',[]),
+                (36,'''<div class="Comments-container"></div><button aria-label="评论 1" onclick="this.disabled=true;
+                    setTimeout(()=>document.querySelector('.Comments-container').innerHTML=
+                    '&lt;section data-comment-id=slow&gt;&lt;span class=RichText&gt;慢评论&lt;/span&gt;&lt;/section&gt;',6200)">评论 1</button>''',['慢评论']),
+                (37,'<div class="Comments-container"></div>',None),
+            ]:
+                url=URL[:-2]+str(n)
+                html=f'<h1>测试</h1><section class="AnswerItem" data-answer-id="{n}">{markup}</section>'
+                page.goto(url)
+                def msg(action):
+                    return ui.evaluate("""async ([url,action])=>{const [tab]=await chrome.tabs.query({url});
+                        return chrome.tabs.sendMessage(tab.id,{action,limit:1})}""",[url,action])
+                assert msg('start')['ok']
+                deadline=time.monotonic()+25
+                while (s:=msg('status'))['running']:
+                    assert time.monotonic()<deadline,s
+                    time.sleep(.2)
+                assert bool(s.get('completed'))==(expect is not None),s
+                rows=ui.evaluate("async u=>(await chrome.storage.local.get('video:'+u))['video:'+u].comments.map(c=>c.text)",url)
+                assert rows==(expect or []),rows
+                print(n,s['state'])
         finally:
             ctx.close()
 

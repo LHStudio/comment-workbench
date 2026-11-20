@@ -37,3 +37,6 @@ for(const [id,host,sample] of specs){
 assert.equal(sites.search('not-allowed',term),null);
 assert.equal(sites.search('weibo',' '),null);
 console.log('PASS: 5 home/search/detail routes, encoded keywords, canonical URLs and search injection scopes.');
+assert.equal(sites.question('https://www.zhihu.com/question/42?from=test')?.url,'https://www.zhihu.com/question/42');
+assert.equal(sites.question('https://www.zhihu.com/question/42/answer/7'),null);
+console.log('PASS: question index and answer are distinct routes.');

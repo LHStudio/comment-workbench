@@ -9,7 +9,7 @@
   };
   function render(){
     const link = current(), view = link.dataset.view;
-    if(location.href !== link.href)history.replaceState(null,'',link.href);
+    if(location.href !== link.href&&!new URL(location.href).searchParams.has('question'))history.replaceState(null,'',link.href);
     for(const a of links){
       if(a === link)a.setAttribute('aria-current','page');
       else a.removeAttribute('aria-current');

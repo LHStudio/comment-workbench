@@ -33,7 +33,7 @@ function render(){
   if(platform)sources.add(platform.id);
   if((pf&&pf!==(platform?.id||'unknown'))||(tf&&tf!==type))continue;
   const matching=rows.filter(c=>[v.title,c.nickname,c.text].some(s=>String(s||'').toLowerCase().includes(q)));
-  if(q&&!matching.length&&!v.title?.toLowerCase().includes(q))continue;
+  if(q&&!matching.length&&![v.title,v.answer?.text,v.answer?.author].some(x=>x?.toLowerCase().includes(q)))continue;
   shown++;
   const d=el('details'),s=el('summary'),ul=el('ul'),bar=el('div');
   const headline=el('span'),badge=el('span',platform?.label||'未知平台'),meta=el('span');
@@ -48,6 +48,13 @@ function render(){
   select.onchange=async()=>{await edit(vk(k),{group:select.value});opened.add(k);render();};
   bar.append(el('label','作品类型'),select);
   const numbers=new Map(rows.map((c,i)=>[c.ref,i+1]).filter(([ref])=>ref));
+  let answerBlock;
+  if(v.answer){
+   const a=v.answer;answerBlock=el('section');answerBlock.className='answerContext';
+   const h=el('strong',`回答 ${a.answerId}${a.author?' · '+a.author:''}`);
+   answerBlock.append(h,el('p',a.text||'未识别到可见回答正文'),el('small','此回答下的评论'));
+   meta.prepend(el('span',a.author||'回答 '+a.answerId));
+  }
   const fill=()=>{ul.replaceChildren();if(!d.open)return;
    for(const c of matching){const li=el('li'),info=el('div');
     const link=r=>numbers.has(r)?`#${numbers.get(r)}`:'不在当前样本';
@@ -56,7 +63,7 @@ function render(){
     li.append(info,btn('移出样本',async()=>{await edit(rk(k,c),{dropped:true});render();}));ul.append(li);}
    if(!matching.length)ul.append(el('li','没有保留的评论。'));
   };
-  d.append(s,bar,ul);d.open=!!q||opened.has(k);
+  d.append(s,bar);if(answerBlock)d.append(answerBlock);d.append(ul);d.open=!!q||opened.has(k);
   d.ontoggle=()=>{if(!q){if(d.open)opened.add(k);else opened.delete(k);}fill();};
   const remove=btn('删除此作品',()=>removeSamples(k));remove.className='danger removeWork';
   const actions=el('div');actions.className='workActions';
@@ -117,8 +124,13 @@ $('platformFilter').onchange=render;$('typeFilter').onchange=render;
 $('resetFilters').onclick=()=>{$('search').value='';$('typeFilter').value='';$('platformFilter').value='';render();};
 const cell=x=>{let s=String(x??'');if(/^\s*[=+@-]|^[\t\r]/.test(s))s="'"+s;return '"'+s.replaceAll('"','""')+'"';};
 $('export').onclick=async()=>{
- await load();const rows=[['作品标题','作品链接','作品类型','评论人昵称','评论正文','采集时间','作品最近采集时间','评论层级','评论标识','父评论标识','所属主评标识']];
- for(const [k,v] of vids())for(const c of v.comments)if(kept(k,c))rows.push([v.title,v.url,name(group(k,v)),c.nickname,c.text,c.capturedAt,v.updated,level(c),c.ref,c.parentRef,c.rootRef]);
+ await load();const rows=[['作品标题','作品链接','作品类型','评论人昵称','评论正文','采集时间','作品最近采集时间','评论层级','评论标识','父评论标识','所属主评标识','知乎问题ID','知乎回答ID','回答作者','回答正文']];
+ for(const [k,v] of vids()){
+  const answer=v.answer,context=answer?[answer.questionId,answer.answerId,answer.author,answer.text]:['','','',''];
+  const comments=v.comments.filter(c=>kept(k,c));
+  if(answer&&!comments.length)rows.push([v.title,v.url,name(group(k,v)),'','','',v.updated,'','','','',...context]);
+  for(const c of comments)rows.push([v.title,v.url,name(group(k,v)),c.nickname,c.text,c.capturedAt,v.updated,level(c),c.ref,c.parentRef,c.rootRef,...context]);
+ }
  const a=el('a');a.href=URL.createObjectURL(new Blob(['\ufeff'+rows.map(r=>r.map(cell).join(',')).join('\r\n')],{type:'text/csv;charset=utf-8'}));a.download='评论工作台_原始评论.csv';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);
 };
 let refreshTimer;

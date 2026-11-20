@@ -57,7 +57,7 @@ def offline_https(temp, render):
     thread.start()
     try:
         port = server.server_port
-        rules=', '.join(f'MAP {h} 127.0.0.1:{port}' for h in ('*.bilibili.com','*.xiaohongshu.com'))
+        rules=', '.join(f'MAP {h} 127.0.0.1:{port}' for h in ('*.bilibili.com','*.xiaohongshu.com','www.zhihu.com'))
         yield [f'--host-resolver-rules={rules}, MAP * ~NOTFOUND',
                '--no-proxy-server', '--disable-quic', '--ignore-certificate-errors']
     finally:
@@ -79,7 +79,14 @@ def main():
 
         def serve(host, path):
             visits.append((host, path))
-            if host == 'search.bilibili.com':
+            if host=='www.zhihu.com' and path=='/question/42':
+                body='<h1>例题</h1>'+''.join(f'<section class="AnswerItem" data-answer-id="{i}">回答{i}</section>' for i in [701,702])
+            elif host=='www.zhihu.com' and path.startswith('/question/42/answer/'):
+                i=path.split('/')[-1]
+                body=f'''<h1>例题</h1><section class="AnswerItem" data-answer-id="{i}"><div class="AuthorInfo-name">作者{i}</div>
+                  <div class="RichContent-inner">回答正文{i}</div><button onclick="setTimeout(()=>document.querySelector('.Comments-container').hidden=false,1800)">1 条评论</button>
+                  <div hidden class="Comments-container"><div data-comment-id="1"><span class="RichText">评论{i}</span></div></div></section>'''
+            elif host == 'search.bilibili.com':
                 body = ''.join(f'<div class="bili-video-card"><a href="https://www.bilibili.com/video/{i}/?from=test"><h3>测试 {i}</h3></a></div>' for i in [IDS[0], *IDS])
                 body += """<script>const u=new URL(location.href);u.searchParams.set('from','fixture');history.replaceState({},'',u);</script>"""
                 body += '<aside><a href="https://www.bilibili.com/video/BV1AA411c7c4/">推荐（不入队）</a></aside>'
@@ -141,11 +148,15 @@ def main():
 
             assert first.locator('#topicMode').count()==0, 'obsolete mode control'
             start('逐平台')
-            wait(first, "q.term==='逐平台'&&q.phase==='attention'")
+            wait(first, "q.term==='逐平台'&&q.phase==='verifying'")
+            challenge=next(p for p in ctx.pages if IDS[1] in p.url)
+            assert challenge.locator('cwb-page-notice').get_attribute('aria-label').startswith('请在本页')
+            first.locator('#topicPause').click()
+            wait(first,"q.phase==='paused'")
             q=state(first)
             assert visits.index(('www.xiaohongshu.com',f'/search_result/{NOTE}'))<visits.index(('search.bilibili.com','/all')),visits
             assert [i['state'] for i in q['items']]==['done','done','partial','pending'],q
-            assert q['items'][2]['count']==1 and '验证' in q['items'][2]['note']
+            assert q['items'][2]['count']==0 and not challenge.is_closed()
             url=f'https://www.xiaohongshu.com/explore/{NOTE}'
             assert first.evaluate("async u=>(await chrome.storage.local.get('video:'+u))['video:'+u].title",url)=='笔记详情标题'
             assert first.evaluate("async()=>!JSON.stringify(await chrome.storage.local.get(null)).includes('xsec_source')")
@@ -156,10 +167,11 @@ def main():
             first.wait_for_timeout(500)
             assert before==visits
             mode['blocked'] = False
+            challenge.locator('[role="dialog"]').evaluate('e=>e.remove()')
             first.locator('#topicNext').click()
             wait(first, "q.phase==='done'")
             assert visits[len(before):].count(('www.xiaohongshu.com',f'/search_result/{NOTE}'))==0
-            print('platform order, saved real title and partial rows, no automatic retries, explicit retry only')
+            print('platform order, work verification prompt, pause and resume on retained tab')
 
             mode['deleted']=True
             start('单篇不可读',['bili'],2)
@@ -223,6 +235,28 @@ def main():
             wait(first,"q.term==='搜索重连仍失败'&&['done','attention'].includes(q.phase)")
             assert first.evaluate('window.discoveryCalls')==2 and '无法连接' in state(first)['searches'][0]['note'],state(first)
             print('transient content receiver reconnected once; lasting disconnect displayed Chinese reason')
+            base='https://www.zhihu.com/question/42'
+            start(base,['zhihu'],2)
+            wait(first,"q.term.endsWith('/42')&&q.page?.url.endsWith('/answer/701')")
+            assert first.locator('#topicPercent').inner_text()=='33%'
+            assert first.locator('#topicAddress').inner_text()==base+'/answer/701'
+            assert first.locator('#topicItems [aria-current=step]').count()==1
+            assert first.locator('#topicNow').evaluate("e=>getComputedStyle(e,'::before').animationName")=='collecting'
+            first.locator('#topicLocate').click()
+            assert first.evaluate("async()=>(await chrome.tabs.query({active:true,currentWindow:true}))[0].url").endswith('/701')
+            wait(first,"q.phase==='done'")
+            assert first.locator('#topicPercent').inner_text()=='100%'
+            for i in ('701','702'):
+                rec=first.evaluate("async k=>(await chrome.storage.local.get(k))[k]",'video:'+base+'/answer/'+i)
+                assert rec['answer']==dict(questionId='42',answerId=i,text='回答正文'+i,author='作者'+i),rec
+                assert [c['text'] for c in rec['comments']]==['评论'+i]
+            first.goto(home.replace('view=topic','view=samples'))
+            with first.expect_download() as download:first.locator('#export').click()
+            import csv
+            with open(download.value.path(),encoding='utf-8-sig',newline='') as f:
+                rows={r['知乎回答ID']:r for r in csv.DictReader(f) if r['知乎问题ID']=='42'}
+            assert all(rows[i]['评论正文']=='评论'+i and rows[i]['回答正文']=='回答正文'+i for i in ('701','702'))
+            print('question 42: two answer bodies, scoped comments and CSV; 33% active page, focus, 100% complete')
         finally:
             ctx.close()
             offline.__exit__(None, None, None)

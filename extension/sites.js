@@ -70,5 +70,10 @@ const Sites = (() => {
     } catch {}
     return null;
   }
-  return {work,platforms,platform,search,sameSearch,searchPage};
+  function question(raw){
+    try{const u=new URL(raw),m=u.pathname.match(/^\/question\/(\d+)\/?$/);
+      return !u.username&&!u.password&&u.origin==='https://www.zhihu.com'&&m?{id:m[1],url:u.origin+'/question/'+m[1]}:null;
+    }catch{return null;}
+  }
+  return {work,question,platforms,platform,search,sameSearch,searchPage};
 })();
